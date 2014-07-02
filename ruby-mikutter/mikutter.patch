@@ -1,0 +1,4852 @@
+diff -Nur mikutter.orig/core/plugin/change_account/account_control.rb mikutter/core/plugin/change_account/account_control.rb
+--- mikutter.orig/core/plugin/change_account/account_control.rb	2014-07-02 06:51:40.883714163 +0900
++++ mikutter/core/plugin/change_account/account_control.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,89 +0,0 @@
+-# -*- coding: utf-8 -*-
+-module ::Plugin::ChangeAccount
+-  class AccountControl < Gtk::CRUD
+-    include Gtk::TreeViewPrettyScroll
+-    COL_ICON = 0
+-    COL_SCREEN_NAME = 1
+-    COL_NAME = 2
+-    COL_SERVICE = 3
+-
+-    def column_schemer
+-      [{:kind => :pixbuf, :type => Gdk::Pixbuf, :label => ''},
+-       {:kind => :text, :type => String, :label => Plugin[:change_account]._('SN')},
+-       {:kind => :text, :type => String, :label => Plugin[:change_account]._('名前')},
+-       {:type => Object},
+-      ].freeze
+-    end
+-
+-    def force_record_create(service)
+-      type_strict service => Service
+-      return if self.destroyed?
+-      [service.user_obj[:name], service.user_obj[:idname], service]
+-      iter = model.model.append
+-      iter[COL_ICON] = Gdk::WebImageLoader.pixbuf(service.user_obj[:profile_image_url], 16, 16) { |new_pixbuf|
+-        iter[COL_ICON] = new_pixbuf if not self.destroyed? }
+-      iter[COL_SCREEN_NAME] = service.user_obj[:idname]
+-      iter[COL_NAME] = service.user_obj[:name]
+-      iter[COL_SERVICE] = service
+-      on_created(iter)
+-    end
+-
+-    def on_deleted(iter)
+-      Service.destroy(iter[COL_SERVICE]) end
+-
+-    def popup_input_window(defaults = [])
+-      parent_window = self and self.toplevel.toplevel? and self.toplevel
+-      twitter = MikuTwitter.new
+-      twitter.consumer_key = Environment::TWITTER_CONSUMER_KEY
+-      twitter.consumer_secret = Environment::TWITTER_CONSUMER_SECRET
+-      request_token = twitter.request_oauth_token
+-      result = nil
+-      dialog = ::Gtk::Dialog.new("#{dialog_title} - " + Environment::NAME)
+-      dialog.set_size_request(640, 480)
+-      dialog.window_position = Gtk::Window::POS_CENTER
+-
+-      container = ::Gtk::VBox.new
+-      code_input = ::Gtk::Entry.new
+-      code_input.text = ""
+-      code_input.signal_connect('activate') { |elm|
+-        dialog.response(::Gtk::Dialog::RESPONSE_OK) }
+-      container.add(::Gtk::IntelligentTextview.new(request_token.authorize_url))
+-      container.closeup(code_input.center)
+-      dialog.vbox.pack_start(container, true, true, 30)
+-
+-      dialog.add_button(::Gtk::Stock::OK, ::Gtk::Dialog::RESPONSE_OK)
+-      dialog.add_button(::Gtk::Stock::CANCEL, ::Gtk::Dialog::RESPONSE_CANCEL)
+-      dialog.signal_connect('response'){ |widget, response|
+-        if response == ::Gtk::Dialog::RESPONSE_OK
+-          access_token = request_token.get_access_token(oauth_token: request_token.token,
+-                                                        oauth_verifier: code_input.text)
+-          dialog.sensitive = false
+-          Service.add_service(access_token.token, access_token.secret).next { |service|              result = service
+-            parent_window.sensitive = true
+-            dialog.hide_all.destroy
+-            Gtk::main_quit
+-          }.trap { |e|
+-            alert = ::Gtk::Dialog.new(Plugin[:change_account]._("エラー - %{name}") % {name: Environment::NAME})
+-            alert.set_size_request(420, 90)
+-            alert.window_position = ::Gtk::Window::POS_CENTER
+-            alert.vbox.add(::Gtk::Label.new(e.to_s))
+-            alert.add_button(::Gtk::Stock::OK, ::Gtk::Dialog::RESPONSE_OK)
+-            alert.show_all
+-            alert.signal_connect('response'){
+-              dialog.sensitive = true
+-              alert.hide_all.destroy }
+-          }.terminate
+-        else
+-          result = nil
+-          parent_window.sensitive = true
+-          dialog.hide_all.destroy
+-          Gtk::main_quit
+-        end
+-      }
+-      parent_window.sensitive = false
+-      dialog.show_all
+-      Gtk::main
+-      result
+-    end
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/change_account/change_account.rb mikutter/core/plugin/change_account/change_account.rb
+--- mikutter.orig/core/plugin/change_account/change_account.rb	2014-07-02 06:51:40.884714163 +0900
++++ mikutter/core/plugin/change_account/change_account.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,206 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require File.join(File.dirname(__FILE__), "account_control")
+-
+-Plugin.create :change_account do
+-  # トークン切れの警告
+-  MikuTwitter::AuthenticationFailedAction.regist do |service, method = nil, url = nil, options = nil, res = nil|
+-    activity(:system, _("アカウントエラー (@{user})", user: service.user),
+-             description: _("ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n設定から、認証をやり直してください。",
+-                            user: service.user, response: res))
+-    nil
+-  end
+-
+-  # アカウント変更用の便利なコマンド
+-  command(:account_previous,
+-          name: _('前のアカウント'),
+-          condition: lambda{ |opt| Service.instances.size >= 2 },
+-          visible: true,
+-          role: :window) do |opt|
+-    index = Service.instances.index(Service.primary)
+-    if index
+-      max = Service.instances.size
+-      Service.set_primary(Service.instances[(max + index - 1) % max])
+-    elsif not Service.instances.empty?
+-      Service.set_primary(Service.instances.first) end
+-  end
+-
+-  command(:account_forward,
+-          name: _('次のアカウント'),
+-          condition: lambda{ |opt| Service.instances.size >= 2 },
+-          visible: true,
+-          role: :window) do |opt|
+-    index = Service.instances.index(Service.primary)
+-    if index
+-      Service.set_primary(Service.instances[(index + 1) % Service.instances.size])
+-    elsif not Service.instances.empty?
+-      Service.set_primary(Service.instances.first) end
+-  end
+-
+-  filter_command do |menu|
+-    Service.each do |service|
+-      user = service.user_obj
+-      slug = "switch_account_to_#{user.idname}".to_sym
+-      menu[slug] = {
+-        slug: slug,
+-        exec: -> options {},
+-        plugin: @name,
+-        name: _('@%{screen_name}(%{name}) に切り替える'.freeze) % {
+-          screen_name: user.idname,
+-          name: user[:name] },
+-        condition: -> options {},
+-        visible: false,
+-        role: :window,
+-        icon: user[:profile_image_url] } end
+-    [menu] end
+-
+-  # サブ垢は心の弱さ
+-  settings _('アカウント情報') do
+-    listview = ::Plugin::ChangeAccount::AccountControl.new()
+-    Service.instances.each(&listview.method(:force_record_create))
+-    pack_start(Gtk::HBox.new(false, 4).
+-               add(listview).
+-               closeup(listview.buttons(Gtk::VBox)))
+-  end
+-
+-  ### 茶番
+-
+-  # 茶番オブジェクトを新しく作る
+-  def sequence
+-    # 茶番でしか使わないクラスなので、チュートリアル時だけロードする
+-    require File.join(File.dirname(__FILE__), "interactive")
+-    Plugin::ChangeAccount::Interactive.generate end
+-
+-  @sequence = {}
+-
+-  def defsequence(name, &content)
+-    @sequence[name] = content end
+-
+-  def jump_seq(name)
+-    if defined? @sequence[name]
+-      store(:tutorial_sequence, name)
+-      notice "sequence move to #{name}"
+-      if @sequence.has_key? name
+-        @sequence[name].call
+-      else
+-        @sequence[:first].call
+-      end end end
+-
+-  def request_token(reset = false)
+-    if !@request_token || reset
+-      @request_token = parallel {
+-        twitter = MikuTwitter.new
+-        twitter.consumer_key = Environment::TWITTER_CONSUMER_KEY
+-        twitter.consumer_secret = Environment::TWITTER_CONSUMER_SECRET
+-        twitter.request_oauth_token } end 
+-
+-    @request_token end
+-
+-  defsequence :first do
+-    sequence.
+-      say(_('インストールお疲れ様！')).
+-      say(_('はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。')).
+-      next{ jump_seq :register_account }
+-  end
+-
+-  defsequence :register_account do
+-    if not Service.to_a.empty?
+-      jump_seq :achievement
+-      next
+-    end
+-
+-    window = Plugin.filtering(:gui_get_gtk_widget, Plugin::GUI::Window.instance(:default)).first
+-    shell = window.children.first.children.first.children[1]
+-    eventbox = Gtk::EventBox.new
+-    container = Gtk::HBox.new(false)
+-    code_entry = Gtk::Entry.new
+-    decide_button = Gtk::Button.new(_("確定"))
+-    shell.add(eventbox.
+-              add(container.
+-                  closeup(Gtk::Label.new(_("コードを入力→"))).
+-                  add(code_entry).
+-                  closeup(decide_button).center).show_all)
+-    code_entry.ssc(:activate){
+-      decide_button.clicked if not decide_button.destroyed?
+-      false }
+-    decide_button.ssc(:clicked){
+-      eventbox.sensitive = false
+-      Thread.new{
+-        access_token = request_token.get_access_token(oauth_token: request_token.token,
+-                                                      oauth_verifier: code_entry.text)
+-        Service.add_service(access_token.token, access_token.secret)
+-      }.next{ |service|
+-        shell.remove(eventbox)
+-        Thread.new{
+-          sleep 2
+-          sequence.
+-          say(_('おっと。初めてアカウントを登録したから実績が解除されちゃったね。')).next{ jump_seq :achievement } }
+-      }.trap{ |error|
+-        error error
+-        shell.remove(eventbox)
+-        response = if error.is_a?(Net::HTTPResponse)
+-                     error
+-                   elsif error.is_a?(OAuth::Unauthorized)
+-                     error.request
+-                   end
+-        if response
+-          case response.code
+-          when '401'
+-            sequence.say(_("コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n(%{code} %{message})") % {code: response.code, message: response.message}).next{
+-              jump_seq :register_account }
+-          else
+-            sequence.say(_("何かがおかしいよ。\n(%{code} %{message})") % {code: response.code, message: response.message}).next{
+-              jump_seq :register_account }
+-          end
+-          break
+-        end
+-        sequence.say(_("何かがおかしいよ。\n(%{error})") % {error: error.to_s}).next{
+-          jump_seq :register_account }
+-      }.trap{ |error|
+-        error error
+-      }
+-      false
+-    }
+-    sequence.
+-      say(_("登録方法は、\n1. %{authorize_url} にアクセスする\n2. mikutterに登録したいTwitterアカウントでログイン\n3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\nだよ。") % {authorize_url: request_token(true).authorize_url}, nil)
+-  end
+-
+-  defsequence :achievement do
+-    name = Service.primary.user_obj[:name]
+-    sequence.
+-      say(_('実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。') % {name: name}).
+-      next{ jump_seq :final }
+-  end
+-
+-  defsequence :final do
+-    sequence.
+-      say(_('……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} をインストールしてくれたんだもんね。') % {mikutter: Environment::NAME}).
+-      say(_('これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。')).
+-      next{ jump_seq :complete }
+-  end
+-
+-  achievement = nil
+-
+-  defsequence :complete do
+-    achievement.take! if achievement
+-  end
+-
+-  defachievement(:tutorial,
+-                 description: _("mikutterのチュートリアルを見た"),
+-                 hidden: true
+-                 ) do |ach|
+-    seq = at(:tutorial_sequence)
+-    if not(seq or Service.instances.empty?)
+-      ach.take!
+-    else
+-      achievement = ach
+-      request_token if Service.to_a.empty?
+-      if seq
+-        sequence.
+-          say(_("前回の続きから説明するね")).
+-          next{ jump_seq(seq) }
+-      else
+-        jump_seq(:first) end end end
+-
+-end
+-
+diff -Nur mikutter.orig/core/plugin/change_account/interactive.rb mikutter/core/plugin/change_account/interactive.rb
+--- mikutter.orig/core/plugin/change_account/interactive.rb	2014-07-02 06:51:40.884714163 +0900
++++ mikutter/core/plugin/change_account/interactive.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,123 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-module Plugin::ChangeAccount
+-  module InteractiveMixin
+-    def say(message, choose = {Plugin[:change_account]._('次へ') => nil})
+-      self.next {
+-        promise = Deferred.new(true).extend(InteractiveMixin)
+-        Plugin.call(:update, nil,
+-                    [Message.new(message: message,
+-                                 system: true,
+-                                 source: "change_account",
+-                                 created: Time.now,
+-                                 confirm: choose,
+-                                 confirm_callback: promise)])
+-        promise
+-      }
+-    end
+-
+-    def next
+-      super(&Proc.new).extend(InteractiveMixin) end
+-
+-    def trap
+-      super(&Proc.new).extend(InteractiveMixin) end
+-
+-  end
+-
+-  class Interactive < Deferred
+-    include InteractiveMixin
+-
+-    def self.generate
+-      Deferred.new.extend(InteractiveMixin)
+-    end
+-  end
+-
+-  class SubPartsTutorial < Gdk::SubParts
+-    Button = Struct.new(:layout, :value, :x, :y, :width, :height)
+-    OutsideOffset = 48          # 最初のボタンの左端との隙間
+-    ButtonLeft = 6              # ボタンの左端と文字の左側の距離
+-    ButtonRight = 6             # ボタンの右端と文字の右側の距離
+-    ButtonTop = 6               # わかるよね
+-    ButtonBottom = 6            # わかるよね
+-    ButtonMargin = 3            # ボタンとボタンの距離
+-
+-    regist
+-
+-    def initialize(*args)
+-      super
+-      if message[:confirm]
+-        sid = helper.ssc(:click){ |this, e, x, y|
+-          ofsty = helper.mainpart_height
+-          helper.subparts.each{ |part|
+-            break if part == self
+-            ofsty += part.height }
+-          if ofsty <= y and (ofsty + height) >= y and 1 == e.button
+-            button = generate_buttons.find{|b| b.x < x and x < (b.x+b.width) }
+-            if button
+-              helper.signal_handler_disconnect(sid)
+-              message[:confirm] = nil
+-              helper.reset_height
+-              message[:confirm_callback].call(button.value) end end
+-          false } end
+-    end
+-
+-    def render(context)
+-      if helper.visible? and message and message[:confirm]
+-        context.save{
+-          buttons = generate_buttons(context)
+-          return if not buttons
+-          buttons.each{ |button|
+-            render_outline(context, button.x, button.y, *button.layout.size.map{|_|_/Pango::SCALE})
+-            context.save{
+-              context.translate(button.x + ButtonLeft, button.y + ButtonTop)
+-              context.set_source_rgb(*(UserConfig[:mumble_basic_color] || [0,0,0]).map{ |c| c.to_f / 65536 })
+-              context.show_pango_layout(button.layout) } } } end end
+-
+-    def height
+-      buttons = generate_buttons
+-      return 0 if not buttons
+-      @height ||= (buttons.map{|b|b.layout.size[1]}.max / Pango::SCALE) + ButtonMargin*2 + ButtonTop + ButtonBottom end
+-
+-    private
+-
+-    def generate_buttons(context = dummy_context)
+-      if not message[:confirm]
+-        return nil end
+-      ofst = OutsideOffset + ButtonMargin
+-      message[:confirm].map{ |label, value|
+-        layout = context.create_pango_layout
+-        layout.font_description = Pango::FontDescription.new(UserConfig[:mumble_basic_font])
+-        layout.text = label
+-        width = layout.size[0]/Pango::SCALE + ButtonLeft + ButtonRight
+-        x = ofst
+-        ofst += width + ButtonMargin
+-        Button.new(layout, value,
+-                   x, 0,
+-                   width,
+-                   layout.size[1]/Pango::SCALE + ButtonTop + ButtonBottom) } end
+-
+-    def render_outline(context, x, y, width, height)
+-      rect = [ButtonMargin + x,
+-              ButtonMargin + y,
+-              width - ButtonMargin*2 + ButtonLeft + ButtonRight,
+-              height - ButtonMargin*2 + ButtonTop + ButtonBottom, 4]
+-      context.save {
+-        context.pseudo_blur(4) {
+-          context.fill {
+-            context.set_source_rgb(0.5, 0.5, 0.5)
+-            context.rounded_rectangle(*rect)
+-          }
+-        }
+-        context.fill {
+-          context.set_source_rgb(1, 0.95, 0.95)
+-          context.rounded_rectangle(*rect)
+-        }
+-      }
+-    end
+-
+-    def message
+-      helper.message end
+-
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/change_account/.mikutter.yml mikutter/core/plugin/change_account/.mikutter.yml
+--- mikutter.orig/core/plugin/change_account/.mikutter.yml	2014-07-02 06:51:40.883714163 +0900
++++ mikutter/core/plugin/change_account/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
+@@ -1,12 +0,0 @@
+----
+-slug: :change_account
+-depends:
+-  mikutter: 0.2.2.1264
+-  plugin:
+-  - settings
+-  - uitranslator
+-  - achievement
+-version: '1.0'
+-author: toshi_a
+-name: Change Account
+-description: アカウント情報をGUIで入力するプラグイン
+diff -Nur mikutter.orig/core/plugin/change_account/po/ar/change_account.po mikutter/core/plugin/change_account/po/ar/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/ar/change_account.po	2014-07-02 06:51:40.884714163 +0900
++++ mikutter/core/plugin/change_account/po/ar/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,117 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Arabic (http://www.transifex.com/projects/p/mikutter/language/ar/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ar\n"
+-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr ""
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/de/change_account.po mikutter/core/plugin/change_account/po/de/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/de/change_account.po	2014-07-02 06:51:40.884714163 +0900
++++ mikutter/core/plugin/change_account/po/de/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,117 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: German (http://www.transifex.com/projects/p/mikutter/language/de/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: de\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr ""
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/el/change_account.po mikutter/core/plugin/change_account/po/el/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/el/change_account.po	2014-07-02 06:51:40.885714164 +0900
++++ mikutter/core/plugin/change_account/po/el/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,118 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-# Klearchos-Angelos Gkountras <kag@grrlz.net>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Greek (http://www.transifex.com/projects/p/mikutter/language/el/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: el\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr "Πληροφορίες λογαριασμού"
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/en/change_account.po mikutter/core/plugin/change_account/po/en/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/en/change_account.po	2014-07-02 06:51:40.885714164 +0900
++++ mikutter/core/plugin/change_account/po/en/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,127 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-# akkiesoft <akkiesoft@marokun.net>, 2013-2014
+-# オーストラリア <s@polamjag.info>, 2014
+-# iorivur <fivo.11235813@gmail.com>, 2013
+-# Hotaka Hitagi, 2013
+-# きゃれっと <mtakeda.enigsol@gmail.com>, 2014
+-# numpad0 <triphenylmethane@gmail.com>, 2013
+-# shinmili <rmsk.pl.ur.lpt@gmail.com>, 2014
+-# roobre <roobre@roobre.es>, 2013
+-# 魚の目玉人形 <toshi.alternative@gmail.com>, 2014
+-# Shirayuki/しらゆき Shira <shirayuking@gmail.com>, 2014
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-21 15:24+0000\n"
+-"Last-Translator: 魚の目玉人形 <toshi.alternative@gmail.com>\n"
+-"Language-Team: English (http://www.transifex.com/projects/p/mikutter/language/en/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: en\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr "Account error (@{user})"
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr "OAuth for @{user} failed (@{response})\nPlease retry authentication from the settings."
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr "Previous account"
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr "Next account"
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr "Change to @%{screen_name}(%{name})"
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr "Account information"
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr "Well done on the installation!"
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr "Confirm"
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr "Enter the code→"
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr "It seems that the code is wrong. Please authenticate again with the new URL.\n(%{code} %{message})"
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr "Something's wrong.\n(%{code} %{message})"
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr "Something's wrong.\n(%{error})"
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr "1. Click the link %{authorize_url}\n2. Login with the Twitter account you wish to use.\n3. Go along until you see a 7-digit code and type it in at the top."
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr "Achievements are a feature to sometimes show you features %{name}-san haven't used yet."
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr "...... Though it was really brief, maybe that's all I should tell you now. You have installed %{mikutter} for the sake of twitter, haven't you?"
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr "I'd like to show you how to use mikutter little by little. See you later!"
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr "I have read the mikutter tutorial"
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr "I'll explain from where we left off"
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr "Next"
+diff -Nur mikutter.orig/core/plugin/change_account/po/es/change_account.po mikutter/core/plugin/change_account/po/es/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/es/change_account.po	2014-07-02 06:51:40.885714164 +0900
++++ mikutter/core/plugin/change_account/po/es/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,117 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Spanish (http://www.transifex.com/projects/p/mikutter/language/es/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: es\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr ""
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/ro_RO/change_account.po mikutter/core/plugin/change_account/po/ro_RO/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/ro_RO/change_account.po	2014-07-02 06:51:40.885714164 +0900
++++ mikutter/core/plugin/change_account/po/ro_RO/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,118 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-# ArianServ <arianserv@gmail.com>, 2014
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Romanian (Romania) (http://www.transifex.com/projects/p/mikutter/language/ro_RO/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ro_RO\n"
+-"Plural-Forms: nplurals=3; plural=(n==1?0:(((n%100>19)||((n%100==0)&&(n!=0)))?2:1));\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr "Eroare Cont (@{user})"
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr "OAuth pentru @{user} a eşuat (@{response})\nVă rugăm să repetaţi autentificarea din configurări."
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr "Contul Anterior"
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr "Următorul Cont"
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr "Informaţii Cont"
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr "Instalarea a fost realizată cu succes !"
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr "Salut! Eu sunt Kutter-Chan, un caracter mascotă. Mă bucur să te cunosc. Înainte de toate, voi încerca să ănregistrez un cont Twitter."
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr "Confirmare"
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr "Introduceţi codul →"
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr "În acest moment, actiunile actuale au fost anulate pentru că acum înregistrăm pentru prima oară un cont Twitter."
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr "Ceva nu a funcţionat bine.\n(%{code} %{message})"
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr "Ceva nu a funcţionat bine.\n(%{error})"
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr "Cum se înregistrează\n1. se accesează %{authorize_url}\n2. te autentifici în contul Twitter pe care vrei să-l asociezi cu Mikutter\n3. introduci, în partea superioară a acestei ferestre, codul de 7 cifre"
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr "urmăreşte un tutorial cu Mikutter"
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr "Descrierea prezintă continuarea explicaţiilor anterioare"
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr "Următor"
+diff -Nur mikutter.orig/core/plugin/change_account/po/ru/change_account.po mikutter/core/plugin/change_account/po/ru/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/ru/change_account.po	2014-07-02 06:51:40.885714164 +0900
++++ mikutter/core/plugin/change_account/po/ru/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,117 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Russian (http://www.transifex.com/projects/p/mikutter/language/ru/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ru\n"
+-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr ""
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/vi/change_account.po mikutter/core/plugin/change_account/po/vi/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/vi/change_account.po	2014-07-02 06:51:40.885714164 +0900
++++ mikutter/core/plugin/change_account/po/vi/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,117 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Vietnamese (http://www.transifex.com/projects/p/mikutter/language/vi/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: vi\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr ""
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/zh/change_account.po mikutter/core/plugin/change_account/po/zh/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/zh/change_account.po	2014-07-02 06:51:40.886714164 +0900
++++ mikutter/core/plugin/change_account/po/zh/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,117 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (http://www.transifex.com/projects/p/mikutter/language/zh/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr ""
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/zh_CN/change_account.po mikutter/core/plugin/change_account/po/zh_CN/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/zh_CN/change_account.po	2014-07-02 06:51:40.886714164 +0900
++++ mikutter/core/plugin/change_account/po/zh_CN/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,118 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-# Vergil Gefenbauer <sephiroth8719@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (China) (http://www.transifex.com/projects/p/mikutter/language/zh_CN/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh_CN\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr "帐号信息"
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/change_account/po/zh_TW/change_account.po mikutter/core/plugin/change_account/po/zh_TW/change_account.po
+--- mikutter.orig/core/plugin/change_account/po/zh_TW/change_account.po	2014-07-02 06:51:40.886714164 +0900
++++ mikutter/core/plugin/change_account/po/zh_TW/change_account.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,118 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the change_account package.
+-# 
+-# Translators:
+-# Vergil Gefenbauer <sephiroth8719@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2014-05-07 01:14+0900\n"
+-"PO-Revision-Date: 2014-05-06 16:27+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (Taiwan) (http://www.transifex.com/projects/p/mikutter/language/zh_TW/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh_TW\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../change_account.rb:8
+-msgid "アカウントエラー (@{user})"
+-msgstr ""
+-
+-#: ../change_account.rb:9
+-msgid ""
+-"ユーザ @{user} のOAuth 認証が失敗しました (@{response})\n"
+-"設定から、認証をやり直してください。"
+-msgstr ""
+-
+-#: ../change_account.rb:16
+-msgid "前のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:30
+-msgid "次のアカウント"
+-msgstr ""
+-
+-#: ../change_account.rb:49
+-msgid "@%{screen_name}(%{name}) に切り替える"
+-msgstr ""
+-
+-#: ../change_account.rb:59
+-msgid "アカウント情報"
+-msgstr "賬戶信息"
+-
+-#: ../change_account.rb:99
+-msgid "インストールお疲れ様！"
+-msgstr ""
+-
+-#: ../change_account.rb:100
+-msgid "はじめまして！私はマスコットキャラクターのみくったーちゃん。よろしくね。まずはTwitterアカウントを登録しようね。"
+-msgstr ""
+-
+-#: ../change_account.rb:115
+-msgid "確定"
+-msgstr ""
+-
+-#: ../change_account.rb:118
+-msgid "コードを入力→"
+-msgstr ""
+-
+-#: ../change_account.rb:135
+-msgid "おっと。初めてアカウントを登録したから実績が解除されちゃったね。"
+-msgstr ""
+-
+-#: ../change_account.rb:147
+-msgid ""
+-"コードが間違ってるみたい。URLを再生成するから、もう一度アクセスしなおしてね。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:150
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{code} %{message})"
+-msgstr ""
+-
+-#: ../change_account.rb:155
+-msgid ""
+-"何かがおかしいよ。\n"
+-"(%{error})"
+-msgstr ""
+-
+-#: ../change_account.rb:163
+-msgid ""
+-"登録方法は、\n"
+-"1. %{authorize_url} にアクセスする\n"
+-"2. mikutterに登録したいTwitterアカウントでログイン\n"
+-"3. 適当に進んでいって取得できる7桁のコードをこのウィンドウの一番上に入力\n"
+-"だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:169
+-msgid "実績は、まだ %{name} さんが使ったことのない機能を、たまに教えてあげる機能だよ。"
+-msgstr ""
+-
+-#: ../change_account.rb:175
+-msgid ""
+-"……ちょっと短いけど、今私が教えてあげることはこれくらいかな？ Twitter をするために %{mikutter} "
+-"をインストールしてくれたんだもんね。"
+-msgstr ""
+-
+-#: ../change_account.rb:176
+-msgid "これから少しずつ使い方を教えてあげるからね。それじゃ、またねー。"
+-msgstr ""
+-
+-#: ../change_account.rb:187
+-msgid "mikutterのチュートリアルを見た"
+-msgstr ""
+-
+-#: ../change_account.rb:198
+-msgid "前回の続きから説明するね"
+-msgstr ""
+-
+-#: ../interactive.rb:5
+-msgid "次へ"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/account_box.rb mikutter/core/plugin/gtk/account_box.rb
+--- mikutter.orig/core/plugin/gtk/account_box.rb	2014-07-02 06:51:40.901714167 +0900
++++ mikutter/core/plugin/gtk/account_box.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,57 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require "gtk2"
+-
+-class Gtk::AccountBox < Gtk::EventBox
+-  UserConfig[:gtk_accountbox_geometry] ||= 32
+-
+-  def initialize
+-    Plugin[:gtk].on_primary_service_changed(&method(:change_user))
+-    super
+-    Plugin[:gtk].on_service_registered do |service|
+-      refresh end
+-    Plugin[:gtk].on_service_destroyed do |service|
+-      refresh end
+-    ssc(:button_press_event) do |this,event|
+-      open_menu event if 3 >= event.button
+-      false end
+-    ssc_atonce(:realize) do
+-      change_user Service.primary end
+-  end
+-  
+-  def refresh
+-    if 1 < Service.to_a.size
+-      if not @face
+-        @face = Gtk::Image.new(Gdk::WebImageLoader.loading_pixbuf(UserConfig[:gtk_accountbox_geometry], UserConfig[:gtk_accountbox_geometry]))
+-        self.add(@face).show_all end
+-    else
+-      if @face
+-        self.remove(@face)
+-        @face.destroy
+-        @face = nil end end
+-  end
+-
+-  def change_user(service)
+-    refresh
+-    if @face
+-      user = service.user_obj
+-      @face.pixbuf = Gdk::WebImageLoader.pixbuf(user[:profile_image_url], UserConfig[:gtk_accountbox_geometry], UserConfig[:gtk_accountbox_geometry]){ |pixbuf|
+-        if user == service.user_obj
+-          @face.pixbuf = pixbuf end } end end
+-
+-  def open_menu(event)
+-    @menu_last_services ||= Service.to_a.hash
+-    if @menu_last_services != Service.to_a.hash
+-      @menu.destroy if @menu
+-      @menu_last_services = @menu = nil end
+-    @menu ||= Gtk::Menu.new.tap do |menu|
+-      Service.each do |service|
+-        item = Gtk::ImageMenuItem.new(service.user, false)
+-        item.set_image Gtk::WebIcon.new(service.user_obj[:profile_image_url], UserConfig[:gtk_accountbox_geometry], UserConfig[:gtk_accountbox_geometry])
+-        item.ssc(:activate) { |w|
+-          Service.set_primary(service)
+-          false }
+-        menu.append item end
+-      menu end
+-    @menu.show_all.popup(nil, nil, event.button, event.time) end
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/delayer.rb mikutter/core/plugin/gtk/delayer.rb
+--- mikutter.orig/core/plugin/gtk/delayer.rb	2014-07-02 06:51:40.901714167 +0900
++++ mikutter/core/plugin/gtk/delayer.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,19 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require "gtk2"
+-miquire :lib, "delayer"
+-
+-Module.new do
+-
+-  def self.boot
+-    Gtk.idle_add_priority(GLib::PRIORITY_LOW) {
+-      Delayer.run
+-      false }
+-  end
+-
+-  Delayer.register_remain_hook do
+-    boot
+-  end
+-
+-  boot
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/Gemfile mikutter/core/plugin/gtk/Gemfile
+--- mikutter.orig/core/plugin/gtk/Gemfile	2014-07-02 06:51:40.900714167 +0900
++++ mikutter/core/plugin/gtk/Gemfile	1970-01-01 09:00:00.000000000 +0900
+@@ -1,3 +0,0 @@
+-source 'https://rubygems.org'
+-
+-gem 'gtk2', '2.2.0'
+diff -Nur mikutter.orig/core/plugin/gtk/gtk.rb mikutter/core/plugin/gtk/gtk.rb
+--- mikutter.orig/core/plugin/gtk/gtk.rb	2014-07-02 06:51:40.901714167 +0900
++++ mikutter/core/plugin/gtk/gtk.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,613 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-# RubyGnome2を用いてUIを表示するプラグイン
+-
+-require "gtk2"
+-
+-miquire :mui,
+-'cell_renderer_message', 'coordinate_module', 'icon_over_button', 'inner_tl', 'markup_generator',
+-'miracle_painter', 'pseudo_message_widget', 'replyviewer', 'sub_parts_favorite', 'sub_parts_helper',
+-'sub_parts_retweet', 'sub_parts_voter', 'textselector', 'timeline', 'contextmenu', 'crud',
+-'extension', 'intelligent_textview', 'keyconfig', 'listlist', 'message_picker', 'mtk', 'postbox',
+-'pseudo_signal_handler', 'selectbox', 'timeline_utils', 'userlist', 'webicon'
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'mikutter_window')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab_container')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab_toolbar')
+-require File.expand_path File.join(File.dirname(__FILE__), 'delayer')
+-require File.expand_path File.join(File.dirname(__FILE__), 'slug_dictionary')
+-require File.expand_path File.join(File.dirname(__FILE__), 'mainloop')
+-require File.expand_path File.join(File.dirname(__FILE__), 'konami_watcher')
+-
+-Plugin.create :gtk do
+-  @slug_dictionary = Plugin::Gtk::SlugDictionary.new # widget_type => {slug => Gtk}
+-  @tabs_promise = {}                     # slug => Deferred
+-
+-  TABPOS = [Gtk::POS_TOP, Gtk::POS_BOTTOM, Gtk::POS_LEFT, Gtk::POS_RIGHT]
+-
+-  # ウィンドウ作成。
+-  # PostBoxとか複数のペインを持つための処理が入るので、Gtk::MikutterWindowクラスを新設してそれを使う
+-  on_window_created do |i_window|
+-    notice "create window #{i_window.slug.inspect}"
+-    window = ::Gtk::MikutterWindow.new(i_window, self)
+-    @slug_dictionary.add(i_window, window)
+-    window.title = i_window.name
+-    window.set_size_request(240, 240)
+-    geometry = get_window_geometry(i_window.slug)
+-    window.set_default_size(*geometry[:size])
+-    window.move(*geometry[:position])
+-    window.ssc(:event){ |window, event|
+-      if event.is_a? Gdk::EventConfigure
+-        geometry = (UserConfig[:windows_geometry] || {}).melt
+-        size = window.window.geometry[2,2]
+-        position = window.position
+-        modified = false
+-        if defined?(geometry[i_window.slug]) and geometry[i_window.slug].is_a? Hash
+-          geometry[i_window.slug] = geometry[i_window.slug].melt
+-          if geometry[i_window.slug][:size] != size
+-            modified = geometry[i_window.slug][:size] = size end
+-          if geometry[i_window.slug][:position] != position
+-            modified = geometry[i_window.slug][:position] = position end
+-        else
+-          modified = geometry[i_window.slug] = {
+-            size: size,
+-            position: position } end
+-        if modified
+-          UserConfig[:windows_geometry] = geometry end end
+-      false }
+-    window.ssc("destroy"){
+-      Delayer.freeze
+-      window.destroy
+-      ::Gtk::Object.main_quit
+-      # Gtk.main_quit
+-      false }
+-    window.ssc(:focus_in_event) {
+-      i_window.active!(true, true)
+-      false
+-    }
+-    window.ssc('key_press_event'){ |widget, event|
+-      Plugin::GUI.keypress(::Gtk::keyname([event.keyval ,event.state]), i_window) }
+-    window.show_all
+-  end
+-
+-  on_gui_window_change_icon do |i_window, icon|
+-    window = widgetof(i_window)
+-    if window
+-      window.icon = Gdk::Pixbuf.new(icon, 256, 256) end end
+-
+-  # ペイン作成。
+-  # ペインはGtk::NoteBook
+-  on_pane_created do |i_pane|
+-    pane = create_pane(i_pane)
+-    pane.set_tab_border(0).set_group_id(0).set_scrollable(true)
+-    pane.set_tab_pos(TABPOS[UserConfig[:tab_position]])
+-    tab_position_hook_id = UserConfig.connect(:tab_position){ |key, val, before_val, id|
+-      notice "change tab pos to #{TABPOS[val]}"
+-      pane.set_tab_pos(TABPOS[val]) unless pane.destroyed? }
+-    pane.ssc(:page_reordered){ |this, tabcontainer, index|
+-      notice "on_pane_created: page_reordered: #{i_pane.inspect}"
+-        Plugin.call(:rewind_window_order, i_pane.parent) if i_pane.parent
+-      i_tab = tabcontainer.i_tab
+-      notice "tabcontainer #{tabcontainer} => #{i_tab.inspect}"
+-      if i_tab
+-        i_pane.reorder_child(i_tab, index) end
+-      Plugin.call(:after_gui_tab_reordered, i_tab)
+-      false }
+-    pane.ssc(:switch_page){ |this, page, pagenum|
+-      if pagenum == pane.page
+-        i_pane.set_active_child(pane.get_nth_page(pagenum).i_tab, true)
+-      else
+-        notice "switch_page: pagenum(#{pagenum}) != pane.page(#{pane.page})" end }
+-    pane.signal_connect(:page_added){ |this, tabcontainer, index|
+-      type_strict tabcontainer => ::Gtk::TabContainer
+-      notice "on_pane_created: page_added: #{i_pane.inspect}"
+-      Plugin.call(:rewind_window_order, i_pane.parent) if i_pane.parent
+-      i_tab = tabcontainer.i_tab
+-      next false if i_tab.parent == i_pane
+-      notice "on_pane_created: reparent"
+-      Plugin.call(:after_gui_tab_reparent, i_tab, i_tab.parent, i_pane)
+-      i_pane.add_child(i_tab, index)
+-      false }
+-    # 子が無くなった時 : このpaneを削除
+-    pane.signal_connect(:page_removed){
+-      notice "on_pane_created: page_removed: #{i_pane.inspect}"
+-      if not(pane.destroyed?) and pane.children.empty? and pane.parent
+-        pane.parent.remove(pane)
+-        UserConfig.disconnect(tab_position_hook_id)
+-        pane_order_delete(i_pane)
+-        i_pane.destroy end
+-      false }
+-  end
+-
+-  # タブ作成。
+-  # タブには実体が無いので、タブのアイコンのところをGtk::EventBoxにしておいて、それを実体ということにしておく
+-  on_tab_created do |i_tab|
+-    tab = create_tab(i_tab)
+-    if @tabs_promise[i_tab.slug]
+-      @tabs_promise[i_tab.slug].call(tab)
+-      @tabs_promise.delete(i_tab.slug) end end
+-
+-  on_profile_created do |i_profile|
+-    create_pane(i_profile) end
+-
+-  on_profiletab_created do |i_profiletab|
+-    create_tab(i_profiletab) end
+-
+-  # タブを作成する
+-  # ==== Args
+-  # [i_tab] タブ
+-  # ==== Return
+-  # Tab(Gtk::EventBox)
+-  def create_tab(i_tab)
+-    notice "create tab #{i_tab.slug.inspect}"
+-    tab = ::Gtk::EventBox.new.tooltip(i_tab.name)
+-    @slug_dictionary.add(i_tab, tab)
+-    tab_update_icon(i_tab)
+-    tab.ssc(:focus_in_event) {
+-      i_tab.active!(true, true)
+-      false
+-    }
+-    tab.ssc(:key_press_event){ |widget, event|
+-      Plugin::GUI.keypress(::Gtk::keyname([event.keyval ,event.state]), i_tab) }
+-    tab.ssc(:button_press_event) { |this, event|
+-      if event.button == 3
+-        Plugin::GUI::Command.menu_pop(i_tab)
+-      else
+-        Plugin::GUI.keypress(::Gtk::buttonname([event.event_type, event.button, event.state]), i_tab)
+-      end
+-      false }
+-    tab.ssc(:destroy) {
+-      i_tab.destroy
+-      false }
+-    tab.show_all end
+-
+-  on_tab_toolbar_created do |i_tab_toolbar|
+-    notice "create tab toolbar #{i_tab_toolbar.inspect}"
+-    tab_toolbar = ::Gtk::TabToolbar.new(i_tab_toolbar).show_all
+-    @slug_dictionary.add(i_tab_toolbar, tab_toolbar)
+-  end
+-
+-  on_gui_tab_toolbar_join_tab do |i_tab_toolbar, i_tab|
+-    widget = widgetof(i_tab_toolbar)
+-    widget_join_tab(i_tab, widget) if widget
+-  end
+-
+-  # タイムライン作成。
+-  # Gtk::TimeLine
+-  on_timeline_created do |i_timeline|
+-    notice "create timeline #{i_timeline.slug.inspect}"
+-    gtk_timeline = ::Gtk::TimeLine.new(i_timeline)
+-    @slug_dictionary.add(i_timeline, gtk_timeline)
+-    gtk_timeline.tl.ssc(key_press_event: timeline_key_press_event(i_timeline),
+-                        focus_in_event:  timeline_focus_in_event(i_timeline),
+-                        destroy:         timeline_destroy_event(i_timeline))
+-    gtk_timeline.show_all
+-  end
+-
+-  # Timelineウィジェットのfocus_in_eventのコールバックを返す
+-  # ==== Args
+-  # [i_timeline] タイムラインのインターフェイス
+-  # ==== Return
+-  # Proc
+-  def timeline_focus_in_event(i_timeline)
+-    lambda { |this, event|
+-      if this.focus?
+-        i_timeline.active!(true, true)
+-      else
+-        notice "timeline_created: focus_in_event: event receive but not has focus #{i_timeline}" end
+-      false } end
+-
+-  # Timelineウィジェットのkey_press_eventのコールバックを返す
+-  # ==== Args
+-  # [i_timeline] タイムラインのインターフェイス
+-  # ==== Return
+-  # Proc
+-  def timeline_key_press_event(i_timeline)
+-    lambda { |widget, event|
+-      Plugin::GUI.keypress(::Gtk::keyname([event.keyval ,event.state]), i_timeline) } end
+-
+-  # Timelineウィジェットのdestroyのコールバックを返す
+-  # ==== Args
+-  # [i_timeline] タイムラインのインターフェイス
+-  # ==== Return
+-  # Proc
+-  def timeline_destroy_event(i_timeline)
+-    lambda { |this|
+-      i_timeline.destroy
+-      false } end
+-
+-  on_gui_pane_join_window do |i_pane, i_window|
+-    window = widgetof(i_window)
+-    pane = widgetof(i_pane)
+-    if pane.parent
+-      if pane.parent != window.panes
+-        notice "pane parent already exists. removing"
+-        pane.parent.remove(pane)
+-        notice "packing"
+-        window.panes.pack_end(pane, false).show_all
+-        notice "done" end
+-    else
+-      notice "pane doesn't have a parent"
+-      window.panes.pack_end(pane, false).show_all
+-    end
+-  end
+-
+-  on_gui_tab_join_pane do |i_tab, i_pane|
+-    notice "gui_tab_join_pane(#{i_tab}, #{i_pane})"
+-    i_widget = i_tab.children.first
+-    notice "#{i_tab} children #{i_tab.children}"
+-    next if not i_widget
+-    widget = widgetof(i_widget)
+-    notice "widget: #{widget}"
+-    next if not widget
+-    tab = widgetof(i_tab)
+-    pane = widgetof(i_pane)
+-    old_pane = widget.get_ancestor(::Gtk::Notebook)
+-    notice "pane: #{pane}, old_pane: #{old_pane}"
+-    if tab and pane and old_pane and pane != old_pane
+-      notice "#{widget} removes by #{old_pane}"
+-      if tab.parent
+-        page_num = tab.parent.get_tab_pos_by_tab(tab)
+-        if page_num
+-          tab.parent.remove_page(page_num)
+-        else
+-          raise Plugin::Gtk::GtkError, "#{tab} not found in #{tab.parent}" end end
+-      notice "#{widget} pack to #{tab}"
+-      i_tab.children.each{ |i_child|
+-        w_child = widgetof(i_child)
+-        w_child.parent.remove(w_child)
+-        widget_join_tab(i_tab, w_child) }
+-      tab.show_all end
+-    Plugin.call(:rewind_window_order, i_pane.parent) if i_pane.parent
+-  end
+-
+-  on_gui_timeline_join_tab do |i_timeline, i_tab|
+-    widget = widgetof(i_timeline)
+-    widget_join_tab(i_tab, widget) if widget end
+-
+-  on_gui_profile_join_tab do |i_profile, i_tab|
+-    widget = widgetof(i_profile)
+-    widget_join_tab(i_tab, widget) if widget end
+-
+-  on_gui_timeline_add_messages do |i_timeline, messages|
+-    gtk_timeline = widgetof(i_timeline)
+-    gtk_timeline.add(messages) if gtk_timeline and not gtk_timeline.destroyed? end
+-
+-  on_gui_postbox_join_widget do |i_postbox|
+-    notice "create postbox #{i_postbox.slug.inspect}"
+-    type_strict i_postbox => Plugin::GUI::Postbox
+-    i_postbox_parent = i_postbox.parent
+-    next if not i_postbox_parent
+-    postbox_parent = widgetof(i_postbox_parent)
+-    next if not postbox_parent
+-    postbox = @slug_dictionary.add(i_postbox, postbox_parent.add_postbox(i_postbox))
+-    postbox.post.ssc(:focus_in_event) {
+-      i_postbox.active!(true, true)
+-      false }
+-
+-    postbox.post.ssc("populate-popup"){ |widget, menu|
+-      (event, items) = Plugin::GUI::Command.get_menu_items(i_postbox)
+-
+-      menu.append(Gtk::SeparatorMenuItem.new) if items.length != 0
+-      menu2 = Gtk::ContextMenu.new(*items).build!(i_postbox, event, menu)
+-      menu2.show_all 
+-
+-      true }
+-
+-    postbox.post.ssc('key_press_event'){ |widget, event|
+-      Plugin::GUI.keypress(::Gtk::keyname([event.keyval ,event.state]), i_postbox) }
+-    postbox.post.ssc(:destroy){
+-      i_postbox.destroy
+-      false }
+-  end
+-
+-  on_gui_tab_change_icon do |i_tab|
+-    tab_update_icon(i_tab) end
+-
+-  on_tab_toolbar_rewind do |i_tab_toolbar|
+-    tab_toolbar = widgetof(i_tab_toolbar)
+-    if tab_toolbar
+-      tab_toolbar.set_button end end
+-
+-  on_gui_contextmenu do |event, contextmenu|
+-    widget = widgetof(event.widget)
+-    if widget
+-      ::Gtk::ContextMenu.new(*contextmenu).popup(widget, event) end end
+-
+-  on_gui_timeline_clear do |i_timeline|
+-    timeline = widgetof(i_timeline)
+-    if timeline
+-      timeline.clear end end
+-
+-  on_gui_timeline_scroll_to_top do |i_timeline|
+-    notice "called"
+-    timeline = widgetof(i_timeline)
+-    if timeline
+-      timeline.set_cursor_to_display_top end end
+-
+-  on_gui_timeline_move_cursor_to do |i_timeline, message|
+-    tl = widgetof(i_timeline)
+-    if tl
+-      path, column = tl.cursor
+-      notice "path: #{path}, column: #{column}"
+-      if path and column
+-        case message
+-        when :prev
+-          path.prev!
+-          tl.set_cursor(path, column, false)
+-        when :next
+-          path.next!
+-          tl.set_cursor(path, column, false)
+-        else
+-          if message.is_a? Integer
+-            path, = *tl.get_path(0, message)
+-              tl.set_cursor(path, column, false) if path end end end end end
+-
+-  on_gui_timeline_set_order do |i_timeline, order|
+-    widgetof(i_timeline).set_order(&order) end
+-
+-  on_gui_postbox_post do |i_postbox|
+-    postbox = widgetof(i_postbox)
+-    if postbox
+-      postbox.post_it end end
+-
+-  # i_widget.destroyされた時に呼ばれる。
+-  # 必要ならば、ウィジェットの実体もあわせて削除する。
+-  on_gui_destroy do |i_widget|
+-    widget = widgetof(i_widget)
+-    if widget and not widget.destroyed?
+-      if i_widget.is_a?(Plugin::GUI::Tab) and i_widget.parent
+-        pane = widgetof(i_widget.parent)
+-        if pane
+-          pane.n_pages.times{ |pagenum|
+-            if widget == pane.get_tab_label(pane.get_nth_page(pagenum))
+-              Plugin.call(:rewind_window_order, i_widget.parent.parent)
+-              pane.remove_page(pagenum)
+-              break end } end
+-      else
+-        widget.parent.remove(widget) if widget.parent
+-        widget.destroy end end end
+-
+-  # 互換性のため
+-  on_mui_tab_regist do |container, name, icon|
+-    slug = name.to_sym
+-    i_tab = Plugin::GUI::Tab.instance(slug, name)
+-    i_tab.set_icon(icon).expand
+-    i_container = Plugin::GUI::TabChildWidget.instance
+-    @slug_dictionary.add(i_container, container)
+-    i_tab << i_container
+-    @tabs_promise[i_tab.slug] = (@tabs_promise[i_tab.slug] || Deferred.new).next{ |tab|
+-      widget_join_tab(i_tab, container.show_all) } end
+-
+-  # Gtkオブジェクトをタブに入れる
+-  on_gui_nativewidget_join_tab do |i_tab, i_container, container|
+-    notice "nativewidget: #{container} => #{i_tab}"
+-    @slug_dictionary.add(i_container, container)
+-    widget_join_tab(i_tab, container.show_all) end
+-
+-  on_gui_nativewidget_join_profiletab do |i_profiletab, i_container, container|
+-    notice "nativewidget: #{container} => #{i_profiletab}"
+-    @slug_dictionary.add(i_container, container)
+-    widget_join_tab(i_profiletab, container.show_all) end
+-
+-  on_gui_window_rewindstatus do |i_window, text, expire|
+-    window = @slug_dictionary.get(Plugin::GUI::Window, :default)
+-    if not window
+-      next end
+-    statusbar = window.statusbar
+-    cid = statusbar.get_context_id("system")
+-    mid = statusbar.push(cid, text)
+-    notice "rewind statusbar to #{text}, #{expire.inspect}, #{cid}"
+-    if expire != 0
+-      Reserver.new(expire){
+-        if not statusbar.destroyed?
+-          statusbar.remove(cid, mid) end } end end
+-
+-  on_gui_child_activated do |i_parent, i_child, by_toolkit|
+-    type_strict i_parent => Plugin::GUI::HierarchyParent, i_child => Plugin::GUI::HierarchyChild
+-    if by_toolkit
+-      notice "activate by toolkit. ignore."
+-    else
+-      if i_child.is_a?(Plugin::GUI::TabLike)
+-        i_pane = i_parent
+-        i_tab = i_child
+-        notice "gui_child_activated: tab active #{i_pane} => #{i_tab}"
+-        pane = widgetof(i_pane)
+-        tab = widgetof(i_tab)
+-        if pane and tab
+-          pagenum = pane.get_tab_pos_by_tab(tab)
+-          pane.page = pagenum if pagenum and pane.page != pagenum end
+-      elsif i_parent.is_a?(Plugin::GUI::Window)
+-        i_term = i_child.respond_to?(:active_chain) ? i_child.active_chain.last : i_child
+-        if i_term
+-          window = widgetof(i_parent)
+-          widget = widgetof(i_term)
+-          if window and widget
+-            notice "ACTIVATE! #{window} => #{widget}"
+-            if widget.respond_to? :active
+-              widget.active
+-            else
+-              window.set_focus(widget) end end end end end end
+-
+-  on_posted do |service, messages|
+-    messages.each{ |message|
+-      if(replyto_source = message.replyto_source)
+-        Gdk::MiraclePainter.findbymessage(replyto_source).each{ |mp|
+-          mp.on_modify } end } end
+-
+-  on_favorite do |service, user, message|
+-    if(user.is_me?)
+-      Gdk::MiraclePainter.findbymessage(message).each{ |mp|
+-        mp.on_modify } end end
+-
+-  on_konami_activate do
+-    Gtk.konami_load
+-  end
+-
+-  filter_gui_postbox_input_editable do |i_postbox, editable|
+-    postbox = widgetof(i_postbox)
+-    if postbox
+-      [i_postbox, postbox && postbox.post.editable?]
+-    else
+-      [i_postbox, editable] end end
+-
+-  filter_gui_timeline_cursor_position do |i_timeline, y|
+-    timeline = widgetof(i_timeline)
+-    if timeline
+-      path, column = *timeline.cursor
+-      if path
+-        rect = timeline.get_cell_area(path, column)
+-        next [i_timeline, rect.y + (rect.height / 2).to_i] end
+-    end
+-    [i_timeline, y] end
+-
+-  filter_gui_timeline_selected_messages do |i_timeline, messages|
+-    timeline = widgetof(i_timeline)
+-    if timeline
+-      [i_timeline, messages + timeline.get_active_messages]
+-    else
+-      [i_timeline, messages] end end
+-
+-  filter_gui_timeline_selected_text do |i_timeline, message, text|
+-    timeline = widgetof(i_timeline)
+-    next [i_timeline, message, text] if not timeline
+-    record = timeline.get_record_by_message(message)
+-    next [i_timeline, message, text] if not record
+-    range = record.miracle_painter.textselector_range
+-    next [i_timeline, message, text] if not range
+-    [i_timeline, message, message.entity.to_s[range]]
+-  end
+-
+-  filter_gui_destroyed do |i_widget|
+-    if i_widget.is_a? Plugin::GUI::Widget
+-      [!widgetof(i_widget)]
+-    else
+-      [i_widget] end end
+-
+-  filter_gui_get_gtk_widget do |i_widget|
+-    [widgetof(i_widget)] end
+-
+-  # タブ _tab_ に _widget_ を入れる
+-  # ==== Args
+-  # [i_tab] タブ
+-  # [widget] Gtkウィジェット
+-  def widget_join_tab(i_tab, widget)
+-    tab = widgetof(i_tab)
+-    return false if not tab
+-    i_pane = i_tab.parent
+-    return false if not i_pane
+-    pane = widgetof(i_pane)
+-    return false if not pane
+-    is_tab = i_tab.is_a?(Plugin::GUI::Tab)
+-    is_parmatab = is_tab and not(i_tab.temporary_tab?)
+-    has_child = is_parmatab and not(i_tab.children.any?{ |child|
+-                                      not child.is_a? Plugin::GUI::TabToolbar })
+-    notice "widget_join_tab: #{widget} join #{i_tab}"
+-    if has_child
+-      Plugin.call(:rewind_window_order, i_pane.parent) end
+-    container_index = pane.get_tab_pos_by_tab(tab)
+-    if container_index
+-      container = pane.get_nth_page(container_index)
+-      if container
+-        return container.pack_start(widget, i_tab.pack_rule[container.children.size]) end end
+-    if tab.parent
+-      raise Plugin::Gtk::GtkError, "Gtk Widget #{tab.inspect} of Tab(#{i_tab.slug.inspect}) has parent Gtk Widget #{tab.parent.inspect}" end
+-    container = ::Gtk::TabContainer.new(i_tab).show_all
+-    container.ssc(:key_press_event){ |w, event|
+-      Plugin::GUI.keypress(::Gtk::keyname([event.keyval ,event.state]), i_tab) }
+-    container.pack_start(widget, i_tab.pack_rule[container.children.size])
+-    pane.append_page(container, tab)
+-    pane.set_tab_reorderable(container, true).set_tab_detachable(container, true)
+-    true end
+-
+-  def tab_update_icon(i_tab)
+-    type_strict i_tab => Plugin::GUI::TabLike
+-    tab = widgetof(i_tab)
+-    if tab
+-      tab.tooltip(i_tab.name)
+-      tab.remove(tab.child) if tab.child
+-      if i_tab.icon.is_a?(String)
+-        tab.add(::Gtk::WebIcon.new(i_tab.icon, 24, 24).show)
+-      else
+-        tab.add(::Gtk::Label.new(i_tab.name).show) end end
+-    self end
+-
+-  def get_window_geometry(slug)
+-    type_strict slug => Symbol
+-    geo = UserConfig[:windows_geometry]
+-    if defined? geo[slug]
+-      geo[slug]
+-    else
+-      size = [Gdk.screen_width/3, Gdk.screen_height*4/5]
+-      { size: size,
+-        position: [Gdk.screen_width - size[0], Gdk.screen_height/2 - size[1]/2] } end end
+-
+-  # ペインを作成
+-  # ==== Args
+-  # [i_pane] ペイン
+-  # ==== Return
+-  # ペイン(Gtk::Notebook)
+-  def create_pane(i_pane)
+-    notice "create pane #{i_pane.slug.inspect}"
+-    pane = ::Gtk::Notebook.new
+-    @slug_dictionary.add(i_pane, pane)
+-    pane.ssc('key_press_event'){ |widget, event|
+-      Plugin::GUI.keypress(::Gtk::keyname([event.keyval ,event.state]), i_pane) }
+-    pane.ssc(:destroy){
+-      i_pane.destroy if i_pane.destroyed?
+-      false }
+-    pane.show_all end
+-
+-  # ウィンドウ内のペイン、タブの現在の順序を設定に保存する
+-  on_rewind_window_order do |i_window|
+-    panes_order = {}
+-    i_window.children.each{ |i_pane|
+-      if i_pane.is_a? Plugin::GUI::Pane
+-        tab_order = []
+-        pane = widgetof(i_pane)
+-        if pane
+-          pane.n_pages.times{ |page_num|
+-            i_widget = find_implement_widget_by_gtkwidget(pane.get_tab_label(pane.get_nth_page(page_num)))
+-            if i_widget and not i_widget.temporary_tab? and i_widget.children.any?{ |child| not child.is_a? Plugin::GUI::TabToolbar }
+-              tab_order << i_widget.slug end } end
+-        panes_order[i_pane.slug] = tab_order if not tab_order.empty? end }
+-    ui_tab_order = (UserConfig[:ui_tab_order] || {}).melt
+-    ui_tab_order[i_window.slug] = panes_order
+-    UserConfig[:ui_tab_order] = ui_tab_order end
+-
+-  # ペインを順序リストから削除する
+-  # ==== Args
+-  # [i_pane] ペイン
+-  def pane_order_delete(i_pane)
+-    order = UserConfig[:ui_tab_order].melt
+-    i_window = i_pane.parent
+-    order[i_window.slug] = order[i_window.slug].melt
+-    order[i_window.slug].delete(i_pane.slug)
+-    UserConfig[:ui_tab_order] = order
+-  end
+-
+-  # _cuscadable_ に対応するGtkオブジェクトを返す
+-  # ==== Args
+-  # [cuscadable] ウィンドウ、ペイン、タブ、タイムライン等
+-  # ==== Return
+-  # 対応するGtkオブジェクト
+-  def widgetof(cuscadable)
+-    type_strict cuscadable => :slug
+-    result = @slug_dictionary.get(cuscadable)
+-    if result and result.destroyed?
+-      nil
+-    else
+-      result end end
+-
+-  # Gtkオブジェクト _widget_ に対応するウィジェットのオブジェクトを返す
+-  # ==== Args
+-  # [widget] Gtkウィジェット
+-  # ==== Return
+-  # _widget_ に対応するウィジェットオブジェクトまたは偽
+-  def find_implement_widget_by_gtkwidget(widget)
+-    @slug_dictionary.imaginally_by_gtk(widget) end
+-end
+-
+-module Plugin::Gtk
+-  class GtkError < Exception
+-  end end
+diff -Nur mikutter.orig/core/plugin/gtk/konami_watcher.rb mikutter/core/plugin/gtk/konami_watcher.rb
+--- mikutter.orig/core/plugin/gtk/konami_watcher.rb	2014-07-02 06:51:40.901714167 +0900
++++ mikutter/core/plugin/gtk/konami_watcher.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,30 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# なーにがkonami_watcherじゃ
+-
+-module Gtk
+-  KONAMI_SEQUENCE = [Gdk::Keyval::GDK_Up,
+-                     Gdk::Keyval::GDK_Up,
+-                     Gdk::Keyval::GDK_Down,
+-                     Gdk::Keyval::GDK_Down,
+-                     Gdk::Keyval::GDK_Left,
+-                     Gdk::Keyval::GDK_Right,
+-                     Gdk::Keyval::GDK_Left,
+-                     Gdk::Keyval::GDK_Right,
+-                     Gdk::Keyval::GDK_b,
+-                     Gdk::Keyval::GDK_a].freeze
+-  remain = KONAMI_SEQUENCE
+-  Gtk.key_snooper_install do |grab_widget, event|
+-    if Gdk::Event::KEY_PRESS == event.event_type
+-      if remain.first == event.keyval
+-        remain = remain.cdr
+-        unless remain
+-          Plugin.call :konami_activate
+-          remain = KONAMI_SEQUENCE
+-        end
+-      else
+-        remain = KONAMI_SEQUENCE
+-      end
+-    end
+-    false
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/mainloop.rb mikutter/core/plugin/gtk/mainloop.rb
+--- mikutter.orig/core/plugin/gtk/mainloop.rb	2014-07-02 06:51:40.901714167 +0900
++++ mikutter/core/plugin/gtk/mainloop.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,20 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-module Mainloop
+-
+-  def before_mainloop
+-    Gtk.init_add{ Gtk.quit_add(Gtk.main_level){ SerialThreadGroup.force_exit! } }
+-  end
+-
+-  def mainloop
+-    Gtk.main
+-  rescue Interrupt,SystemExit,SignalException => exception
+-    raise exception
+-  rescue Exception => exception
+-    Gtk.exception = exception
+-  end
+-
+-  def exception_filter(e)
+-    Gtk.exception ? Gtk.exception : e end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/mikutter_window.rb mikutter/core/plugin/gtk/mikutter_window.rb
+--- mikutter.orig/core/plugin/gtk/mikutter_window.rb	2014-07-02 06:51:40.902714167 +0900
++++ mikutter/core/plugin/gtk/mikutter_window.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,69 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require "gtk2"
+-require File.expand_path(File.join(File.dirname(__FILE__), 'toolbar_generator'))
+-require File.expand_path(File.join(File.dirname(__FILE__), 'account_box'))
+-
+-class Gtk::MikutterWindow < Gtk::Window
+-
+-  attr_reader :panes, :statusbar
+-
+-  def initialize(imaginally, plugin, *args)
+-    type_strict plugin => Plugin
+-    super(*args)
+-    @imaginally = imaginally
+-    @plugin = plugin
+-    @container = Gtk::VBox.new(false, 0)
+-    @panes = Gtk::HBox.new(true, 0)
+-    account = Gtk::AccountBox.new
+-    header = Gtk::HBox.new(false, 0)
+-    @postboxes = Gtk::VBox.new(false, 0)
+-    add @container.
+-      closeup(header.
+-              closeup(account).
+-              pack_start(@postboxes)).
+-      pack_start(@panes).
+-      closeup(create_statusbar)
+-    Plugin[:gtk].on_service_registered do |service|
+-      refresh end
+-    Plugin[:gtk].on_service_destroyed do |service|
+-      refresh end
+-  end
+-
+-  def add_postbox(i_postbox)
+-    postbox = Gtk::PostBox.new(i_postbox.poster || Gtk::PostBox::PostToPrimaryService.new, {postboxstorage: @postboxes, delegate_other: true}.merge(i_postbox.options||{}))
+-    @postboxes.pack_start(postbox)
+-    set_focus(postbox.post)
+-    postbox.no_show_all = false
+-    postbox.show_all if not Service.to_a.empty?
+-    postbox end
+-
+-  private
+-
+-  def refresh
+-    if Service.to_a.empty?
+-      @postboxes.children.each(&:hide)
+-    else
+-      @postboxes.children.each(&:show_all) end end
+-
+-  # ステータスバーを返す
+-  # ==== Return
+-  # Gtk::Statusbar
+-  def create_statusbar
+-    statusbar = Gtk::Statusbar.new
+-    notice "statusbar: context id: #{statusbar.get_context_id("system")}"
+-    statusbar.push(statusbar.get_context_id("system"), @plugin._("Statusbar default message"))
+-    @statusbar = statusbar.closeup(status_button(Gtk::HBox.new)) end
+-
+-  # ステータスバーに表示するWindowレベルのボタンを _container_ にpackする。
+-  # 返された時点では空で、後からボタンが入る(showメソッドは自動的に呼ばれる)。
+-  # ==== Args
+-  # [container] packするコンテナ
+-  # ==== Return
+-  # container
+-  def status_button(container)
+-    Plugin::Gtk::ToolbarGenerator.generate(container,
+-                                           Plugin::GUI::Event.new(:window_toolbar, @imaginally, []),
+-                                           :window) end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/.mikutter.yml mikutter/core/plugin/gtk/.mikutter.yml
+--- mikutter.orig/core/plugin/gtk/.mikutter.yml	2014-07-02 06:51:40.900714167 +0900
++++ mikutter/core/plugin/gtk/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
+@@ -1,11 +0,0 @@
+----
+-slug: :gtk
+-depends:
+-  mikutter: '0.2'
+-  plugin:
+-  - gui
+-  - uitranslator
+-version: '1.0'
+-author: toshi_a
+-name: Gtk2
+-description: Gtk2を使ってウィンドウを描画する
+diff -Nur mikutter.orig/core/plugin/gtk/po/ar/gtk.po mikutter/core/plugin/gtk/po/ar/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/ar/gtk.po	2014-07-02 06:51:40.902714167 +0900
++++ mikutter/core/plugin/gtk/po/ar/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-20 17:35+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Arabic (http://www.transifex.com/projects/p/mikutter/language/ar/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ar\n"
+-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/po/de/gtk.po mikutter/core/plugin/gtk/po/de/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/de/gtk.po	2014-07-02 06:51:40.902714167 +0900
++++ mikutter/core/plugin/gtk/po/de/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-20 11:55+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: German (http://www.transifex.com/projects/p/mikutter/language/de/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: de\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/po/el/gtk.po mikutter/core/plugin/gtk/po/el/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/el/gtk.po	2014-07-02 06:51:40.902714167 +0900
++++ mikutter/core/plugin/gtk/po/el/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-09-26 10:29+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Greek (http://www.transifex.com/projects/p/mikutter/language/el/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: el\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/po/en/gtk.po mikutter/core/plugin/gtk/po/en/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/en/gtk.po	2014-07-02 06:51:40.902714167 +0900
++++ mikutter/core/plugin/gtk/po/en/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,24 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-# akkiesoft <akkiesoft@marokun.net>, 2013
+-# 魚の目玉人形 <toshi.alternative@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-21 13:18+0000\n"
+-"Last-Translator: 魚の目玉人形 <toshi.alternative@gmail.com>\n"
+-"Language-Team: English (http://www.transifex.com/projects/p/mikutter/language/en/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: en\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr "Statusbar default message"
+diff -Nur mikutter.orig/core/plugin/gtk/po/es/gtk.po mikutter/core/plugin/gtk/po/es/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/es/gtk.po	2014-07-02 06:51:40.903714168 +0900
++++ mikutter/core/plugin/gtk/po/es/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2014-02-04 19:32+0000\n"
+-"Last-Translator: soulchainer <soulchainer@gmail.com>\n"
+-"Language-Team: Spanish (http://www.transifex.com/projects/p/mikutter/language/es/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: es\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr "Mensaje predeterminado de la barra de estado"
+diff -Nur mikutter.orig/core/plugin/gtk/po/ja/gtk.po mikutter/core/plugin/gtk/po/ja/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/ja/gtk.po	2014-07-02 06:51:40.903714168 +0900
++++ mikutter/core/plugin/gtk/po/ja/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,23 +0,0 @@
+-# Japanese translations for gtk package
+-# gtk パッケージに対する翻訳.
+-# Copyright (C) 2013 THE gtk'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# Toshiaki Asai <toshi.alternative@gmail.com>, 2013.
+-#
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: gtk 1.0\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-21 14:58+0900\n"
+-"PO-Revision-Date: 2013-07-06 10:04+0900\n"
+-"Last-Translator: Toshiaki Asai <toshi.alternative@gmail.com>\n"
+-"Language-Team: Japanese\n"
+-"Language: ja\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr "mikutter - Twitterを、全く新しい視点から。"
+diff -Nur mikutter.orig/core/plugin/gtk/po/ro_RO/gtk.po mikutter/core/plugin/gtk/po/ro_RO/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/ro_RO/gtk.po	2014-07-02 06:51:40.903714168 +0900
++++ mikutter/core/plugin/gtk/po/ro_RO/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,23 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-# ArianServ <arianserv@gmail.com>, 2014
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2014-04-13 07:33+0000\n"
+-"Last-Translator: ArianServ <arianserv@gmail.com>\n"
+-"Language-Team: Romanian (Romania) (http://www.transifex.com/projects/p/mikutter/language/ro_RO/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ro_RO\n"
+-"Plural-Forms: nplurals=3; plural=(n==1?0:(((n%100>19)||((n%100==0)&&(n!=0)))?2:1));\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr "Mesaj implicit Bară Status"
+diff -Nur mikutter.orig/core/plugin/gtk/po/ru/gtk.po mikutter/core/plugin/gtk/po/ru/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/ru/gtk.po	2014-07-02 06:51:40.903714168 +0900
++++ mikutter/core/plugin/gtk/po/ru/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-08-04 08:47+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Russian (http://www.transifex.com/projects/p/mikutter/language/ru/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ru\n"
+-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/po/vi/gtk.po mikutter/core/plugin/gtk/po/vi/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/vi/gtk.po	2014-07-02 06:51:40.903714168 +0900
++++ mikutter/core/plugin/gtk/po/vi/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-21 05:36+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Vietnamese (http://www.transifex.com/projects/p/mikutter/language/vi/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: vi\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/po/zh/gtk.po mikutter/core/plugin/gtk/po/zh/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/zh/gtk.po	2014-07-02 06:51:40.903714168 +0900
++++ mikutter/core/plugin/gtk/po/zh/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2014-04-11 19:51+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (http://www.transifex.com/projects/p/mikutter/language/zh/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/po/zh_CN/gtk.po mikutter/core/plugin/gtk/po/zh_CN/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/zh_CN/gtk.po	2014-07-02 06:51:40.904714168 +0900
++++ mikutter/core/plugin/gtk/po/zh_CN/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,23 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-# Vergil Gefenbauer <sephiroth8719@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-20 17:14+0000\n"
+-"Last-Translator: Vergil Gefenbauer <sephiroth8719@gmail.com>\n"
+-"Language-Team: Chinese (China) (http://www.transifex.com/projects/p/mikutter/language/zh_CN/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh_CN\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr "Statusbar default message"
+diff -Nur mikutter.orig/core/plugin/gtk/po/zh_TW/gtk.po mikutter/core/plugin/gtk/po/zh_TW/gtk.po
+--- mikutter.orig/core/plugin/gtk/po/zh_TW/gtk.po	2014-07-02 06:51:40.904714168 +0900
++++ mikutter/core/plugin/gtk/po/zh_TW/gtk.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,22 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gtk package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-28 17:40+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (Taiwan) (http://www.transifex.com/projects/p/mikutter/language/zh_TW/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh_TW\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../mikutter_window.rb:55
+-msgid "Statusbar default message"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gtk/slug_dictionary.rb mikutter/core/plugin/gtk/slug_dictionary.rb
+--- mikutter.orig/core/plugin/gtk/slug_dictionary.rb	2014-07-02 06:51:40.904714168 +0900
++++ mikutter/core/plugin/gtk/slug_dictionary.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,90 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-module Plugin::Gtk
+-  class SlugDictionary
+-    class << self
+-      # 名前に対するGtkクラスのハッシュを返す
+-      def nameklass
+-        @nameklass ||= {} end
+-
+-      # 新しいウィジェットタイプ _name_ を登録する。
+-      # ==== Args
+-      # [name] ウィジェットのタイプ(Class)
+-      # [gtk_klass] クラス(Class)
+-      def register_widget(name, gtk_klass)
+-        type_strict name => Class, gtk_klass => Class
+-        nameklass[name] = gtk_klass
+-      end
+-    end
+-
+-    register_widget Plugin::GUI::Window,         ::Gtk::MikutterWindow
+-    register_widget Plugin::GUI::Pane,           ::Gtk::Notebook
+-    register_widget Plugin::GUI::Tab,            ::Gtk::EventBox
+-    register_widget Plugin::GUI::TabToolbar,     ::Gtk::TabToolbar
+-    register_widget Plugin::GUI::Timeline,       ::Gtk::TimeLine
+-    register_widget Plugin::GUI::Profile,        ::Gtk::Notebook
+-    register_widget Plugin::GUI::ProfileTab,     ::Gtk::EventBox
+-    register_widget Plugin::GUI::TabChildWidget, ::Gtk::TabContainer
+-    register_widget Plugin::GUI::Postbox,        ::Gtk::PostBox
+-
+-    def initialize
+-      @widget_of_gtk = Hash.new{|h, k|
+-        if Plugin::Gtk::SlugDictionary.nameklass.has_key?(k)
+-          h[k] = {}
+-        else
+-          raise UndefinedWidgetError, "widget type `#{k}' does not exists" end } end
+-
+-    # _i_widget_ に対応するGtkウィジェットが _gtk_widget_ であることを登録する
+-    # ==== Args
+-    # [i_widget] Plugin::GUI::Widget
+-    # [gtk_widget] Gtk::Widget
+-    # ==== Return
+-    # self
+-    def add(i_widget, gtk_widget)
+-      @widget_of_gtk[i_widget.class][i_widget.slug] = gtk_widget end
+-
+-    # _i_widget_ の登録を解除する
+-    # ==== Args
+-    # [i_widget] Plugin::GUI::Widget
+-    # ==== Return
+-    # self
+-    def remove(i_widget)
+-     @widget_of_gtk[i_widget.class].remove(i_widget.slug)
+-    end
+-
+-    # ウィジェットに対するGtkウィジェットを返す
+-    # ==== Args
+-    # [klass_or_i_widget] ウィジェットかクラス名
+-    # [slug] 第一引数にウィジェットのクラスを指定した場合、そのスラッグ
+-    # ==== Return
+-    # Gtkウィジェット
+-    def get(klass_or_i_widget, slug=nil)
+-      if klass_or_i_widget.is_a? Plugin::GUI::Widget
+-        @widget_of_gtk[klass_or_i_widget.class][klass_or_i_widget.slug]
+-      else
+-        @widget_of_gtk[klass_or_i_widget][slug] end end
+-
+-    # _gtk_widget_ に対応する内部表現のウィジェットをかえす。逆引きなので非効率、あまり使わないこと。
+-    # ==== Args
+-    # [gtk_widget] Gtkウィジェットのインスタンス
+-    # ==== Return
+-    # 対応するウィジェット
+-    def imaginally_by_gtk(gtk_widget)
+-      type_strict gtk_widget => ::Gtk::Widget
+-      Plugin::Gtk::SlugDictionary.nameklass.each{ |i_widget_klass, gtk_widget_klass|
+-        if gtk_widget.is_a? gtk_widget_klass
+-          next if not i_widget_klass
+-          slug = @widget_of_gtk[i_widget_klass].key(gtk_widget)
+-          next if not slug
+-          return i_widget_klass.instance(slug) end }
+-      error "not found (#{gtk_widget.inspect})"
+-      nil end
+-
+-    class UndefinedWidgetError < ArgumentError
+-    end
+-
+-  end
+-end
+-
+-
+-
+diff -Nur mikutter.orig/core/plugin/gtk/tab_container.rb mikutter/core/plugin/gtk/tab_container.rb
+--- mikutter.orig/core/plugin/gtk/tab_container.rb	2014-07-02 06:51:40.904714168 +0900
++++ mikutter/core/plugin/gtk/tab_container.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,16 +0,0 @@
+-# -*- coding: utf-8 -*-
+-require "gtk2"
+-
+-class Gtk::TabContainer < Gtk::VBox
+-  attr_reader :i_tab
+-
+-  def initialize(tab)
+-    type_strict tab => Plugin::GUI::TabLike
+-    @i_tab = tab
+-    super(false, 0)
+-  end
+-
+-  def to_sym
+-    i_tab.slug end
+-  alias slug to_sym
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/tab_toolbar.rb mikutter/core/plugin/gtk/tab_toolbar.rb
+--- mikutter.orig/core/plugin/gtk/tab_toolbar.rb	2014-07-02 06:51:40.904714168 +0900
++++ mikutter/core/plugin/gtk/tab_toolbar.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,20 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require "gtk2"
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'toolbar_generator')
+-
+-class Gtk::TabToolbar < Gtk::HBox
+-  def initialize(imaginally, *args)
+-    type_strict imaginally => Plugin::GUI::TabToolbar
+-    @imaginally = imaginally
+-    super(*args)
+-  end
+-
+-  def set_button
+-    self.children.each(&method(:remove))
+-    Plugin::Gtk::ToolbarGenerator.generate(self,
+-                                           Plugin::GUI::Event.new(:tab_toolbar, @imaginally.parent, []),
+-                                           :tab)
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gtk/toolbar_generator.rb mikutter/core/plugin/gtk/toolbar_generator.rb
+--- mikutter.orig/core/plugin/gtk/toolbar_generator.rb	2014-07-02 06:51:40.904714168 +0900
++++ mikutter/core/plugin/gtk/toolbar_generator.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,35 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-module Plugin::Gtk
+-  module ToolbarGenerator
+-
+-    # ツールバーに表示するボタンを _container_ にpackする。
+-    # 返された時点では空で、後からボタンが入る(showメソッドは自動的に呼ばれる)。
+-    # ==== Args
+-    # [container] packするコンテナ
+-    # ==== Return
+-    # container
+-    def self.generate(container, event, role)
+-      Thread.new{
+-        Plugin.filtering(:command, {}).first.values.select{ |command|
+-          command[:icon] and command[:role] == role and command[:condition] === event }
+-      }.next{ |commands|
+-        commands.each{ |command|
+-          face = command[:show_face] || command[:name] || command[:slug].to_s
+-          name = if defined? face.call then lambda{ |x| face.call(event) } else face end
+-          toolitem = ::Gtk::Button.new
+-          toolitem.add(::Gtk::WebIcon.new(command[:icon], 16, 16))
+-          toolitem.tooltip(name)
+-          toolitem.relief = ::Gtk::RELIEF_NONE
+-          toolitem.ssc(:clicked){
+-            command[:exec].call(event) }
+-          container.closeup(toolitem) }
+-        #container.ssc(:realize, &:queue_resize)
+-        container.show_all if not commands.empty?
+-      }.trap{ |e|
+-        error "error on command toolbar:"
+-        error e
+-      }.terminate
+-      container end
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gui/command.rb mikutter/core/plugin/gui/command.rb
+--- mikutter.orig/core/plugin/gui/command.rb	2014-07-02 06:51:40.905714168 +0900
++++ mikutter/core/plugin/gui/command.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,44 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-module Plugin::GUI
+-  class Command
+-
+-    class << self
+-      def get_menu_items(widget = get_active_widget)
+-        type_strict widget => Plugin::GUI::Widget
+-        labels = []
+-        contextmenu = []
+-        timeline = widget.is_a?(Plugin::GUI::Timeline) ? widget : widget.active_class_of(Plugin::GUI::Timeline)
+-        event = Plugin::GUI::Event.new(:contextmenu, widget, timeline ? timeline.selected_messages : [])
+-        notice "command widget: #{widget} #{timeline}"
+-        Plugin.filtering(:command, Hash.new).first.values.each{ |record|
+-          if(record[:visible] and widget.class.find_role_ancestor(record[:role]))
+-            index = where_should_insert_it(record[:slug].to_s, labels, UserConfig[:mumble_contextmenu_order] || [])
+-            labels.insert(index, record[:slug].to_s)
+-            face = record[:show_face] || record[:name] || record[:slug].to_s
+-            name = if defined? face.call then lambda{ |x| face.call(event) } else face end
+-            contextmenu.insert(index, [name,
+-                                       lambda{ |x| record[:condition] === event },
+-                                       lambda{ |x| record[:exec].call(event) },
+-                                       record[:icon]]) end }
+-
+-        [event,contextmenu]
+-      end
+-
+-      def menu_pop(widget = get_active_widget)
+-        (event, contextmenu) = get_menu_items(widget)
+-
+-        Plugin.call(:gui_contextmenu, event, contextmenu)
+-      end
+-
+-      # フォーカスされているウィジェットを返す。
+-      # ==== Return
+-      # 現在アクティブなウィジェット
+-      def get_active_widget
+-        chain = Plugin::GUI::Window.active.active_chain
+-        chain.last if chain
+-      end
+-    end
+-
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gui/cuscadable.rb mikutter/core/plugin/gui/cuscadable.rb
+--- mikutter.orig/core/plugin/gui/cuscadable.rb	2014-07-02 06:51:40.905714168 +0900
++++ mikutter/core/plugin/gui/cuscadable.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,95 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# タブとかペインみたいにたくさん作れるパーツ
+-
+-module Plugin::GUI::Cuscadable
+-  attr_reader :slug, :plugin
+-  attr_accessor :name
+-
+-  class << self
+-    def included(klass)
+-      klass.instance_eval{
+-        private
+-        alias new_cuscadable new
+-        def new(slug, name, plugin)
+-          type_strict slug => Symbol, name => String, plugin => tcor(NilClass, Symbol)
+-          new_cuscadable(slug, name, plugin) end }
+-      klass.extend ExtendedCuscadable end end
+-
+-  def initialize(slug, name, plugin_name)
+-    @slug, @name, @plugin = slug, name.freeze, plugin_name
+-    @unload_hook = nil
+-    if plugin_name
+-      plugin = Plugin.instance(plugin_name)
+-      if plugin
+-        notice "attach unload hook. plugin:#{plugin}, widget: #{self}"
+-        @unload_hook = plugin.onunload{
+-          notice "widget destroy triggered off detach plugin #{@plugin}. widget: #{self}"
+-          destroy } end end
+-    self.class.regist(self) end
+-
+-  # 次のインスタンスを返す。このインスタンスが最後だった場合は最初に戻る
+-  def next
+-    values = self.class.cuscaded.values
+-    instance, index = values.each_with_index.find{ |instance, index| self.equal?(instance) }
+-    index += 1
+-    index -= values.size if index >= values.size
+-    values[index] end
+-
+-  # 前のインスタンスを返す。このインスタンスが最初だった場合は最後に戻る
+-  def prev
+-    values = self.class.cuscaded.values
+-    instance, index = values.each_with_index.find{ |instance, index| self.equal?(instance) }
+-    index -= 1
+-    index += values.size if index < 0
+-    values[index] end
+-
+-  module ExtendedCuscadable
+-
+-    # タブ _slug_ に対するインターフェイスを作成。
+-    # _slug_ に対応するタブがない場合は作成する。
+-    # ==== Args
+-    # [slug] スラッグ(Symbol)
+-    # [name] タブのラベル(String)
+-    # [plugin] タブを作成したプラグイン
+-    def instance(slug = nil, name=slug, plugin=nil)
+-      if not slug
+-        slug = "__#{self.to_s}_#{Process.pid}_#{Time.now.to_i.to_s(16)}_#{rand(2 ** 32).to_s(16)}".to_sym
+-        return instance if cuscaded.has_key? slug end
+-      type_strict slug => Symbol, name => :to_s
+-      if cuscaded.has_key? slug
+-        imaginally = cuscaded[slug]
+-        if name != slug and name != imaginally
+-          imaginally.name = name
+-        end
+-        imaginally
+-      else
+-        new(slug, name.to_s, plugin) end end
+-
+-    # 新しく作成したタブを新規登録する
+-    # ==== Args
+-    # [tab] タブ
+-    # ==== Return
+-    # self
+-    def regist(tab)
+-      cuscaded[tab.slug] ||= tab
+-      self end
+-
+-    # インスタンスの一覧を取得する
+-    # ==== Return
+-    # インスタンスの配列
+-    def cuscaded
+-      @cuscaded ||= {}          # slug => instance
+-    end
+-
+-    # そのスラッグを持つインスタンスがあるかどうかを調べる
+-    # ==== Args
+-    # [slug] スラッグ
+-    # ==== Return
+-    # スラッグslugを持つインスタンスが既にあれば真
+-    def exist?(slug)
+-      @cuscaded.has_key?(slug) end
+-
+-  end
+-
+-end
+-
+diff -Nur mikutter.orig/core/plugin/gui/dsl.rb mikutter/core/plugin/gui/dsl.rb
+--- mikutter.orig/core/plugin/gui/dsl.rb	2014-07-02 06:51:40.905714168 +0900
++++ mikutter/core/plugin/gui/dsl.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,38 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# GUI定義用のDSLを宣言する
+-
+-module Plugin::GUI
+-  Event = Struct.new(:event, :widget, :messages)
+-  class << self
+-    def ui_setting
+-      UserConfig[:ui_tab_order] || {
+-        default: {
+-          default: [:home_timeline,
+-                    :mentions,
+-                    :activity,
+-                    :directmessage,
+-                    :search] } } end
+-
+-    # 設定されているタブの位置を返す
+-    # ==== Args
+-    # [find_slug] タブのスラッグ
+-    # ==== Return
+-    # [ウィンドウスラッグ, ペインスラッグ, タブのインデックス] の配列。
+-    # 見つからない場合はnil
+-    def get_tab_order(find_slug)
+-      ui_setting.each{ |window_slug, panes|
+-        panes.each{ |pane_slug, tabs|
+-          return [window_slug, pane_slug, tabs] if tabs.include?(find_slug) } }
+-      nil end
+-
+-    # キー _key_ がウィジェット _widget_ の上で押された時に呼び出す
+-    # ==== Args
+-    # [key] 押されたキーの名前
+-    # [widget] キーが押されたウィジェット
+-    # ==== Return
+-    # 何かmikutterコマンドが実行されたなら真
+-    def keypress(key, widget)
+-      result = Plugin.filtering(:keypress, key, widget, false)
+-      result && result.last end
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gui/gui.rb mikutter/core/plugin/gui/gui.rb
+--- mikutter.orig/core/plugin/gui/gui.rb	2014-07-02 06:51:40.905714168 +0900
++++ mikutter/core/plugin/gui/gui.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,84 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# mikutterにGUIをつけるプラグイン
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'dsl')
+-require File.expand_path File.join(File.dirname(__FILE__), 'window')
+-require File.expand_path File.join(File.dirname(__FILE__), 'pane')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab')
+-require File.expand_path File.join(File.dirname(__FILE__), 'profile')
+-require File.expand_path File.join(File.dirname(__FILE__), 'profiletab')
+-require File.expand_path File.join(File.dirname(__FILE__), 'timeline')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab_child_widget')
+-require File.expand_path File.join(File.dirname(__FILE__), 'postbox')
+-require File.expand_path File.join(File.dirname(__FILE__), 'command')
+-
+-Plugin.create :gui do
+-
+-  # タブを作成する
+-  # ==== Args
+-  # [slug] ユニークな識別名。
+-  # [name] タブ名。チップヘルプや、無ければアイコンに使われる。
+-  # [&proc] メインの定義部分
+-  # ==== Return
+-  # procの戻り値
+-  defdsl :tab do |slug, name=nil, &proc|
+-    if proc
+-      i_tab = Plugin::GUI::Tab.instance(slug, name, self.name)
+-      result = i_tab.instance_eval(&proc)
+-      Plugin.call :gui_tab_change_icon, i_tab
+-      i_tab.tab_toolbar.rewind
+-      result
+-    else
+-      Plugin::GUI::Tab.instance(slug, name, self.name) end end
+-
+-  # _slug_ に対応するタイムラインを返す
+-  # ==== Args
+-  # [slug] タイムラインのスラッグ
+-  # ==== Return
+-  # Plugin::GUI::Timeline
+-  defdsl :timeline do |slug|
+-    Plugin::GUI::Timeline.instance(slug) end
+-
+-  # プロフィールタブを定義する
+-  # ==== Args
+-  # [slug] タブスラッグ
+-  # [title] タブのタイトル
+-  defdsl :profiletab do |slug, title, &proc|
+-    filter_profiletab do |tabs, i_profile, user|
+-      tabs.insert(where_should_insert_it(slug, tabs.map(&:first), UserConfig[:profile_tab_order]),
+-                  [slug,
+-                   -> {
+-                     i_profiletab = Plugin::GUI::ProfileTab.instance("#{slug}_#{user.idname}_#{Process.pid}_#{Time.now.to_i.to_s(16)}_#{rand(2 ** 32).to_s(16)}".to_sym, title)
+-                     i_profiletab.profile_slug = slug
+-                     i_profile << i_profiletab
+-                     i_profiletab.instance_eval{ @user = user }
+-                     i_profiletab.instance_eval_with_delegate(self, &proc)} ])
+-      [tabs, i_profile, user] end end
+-
+-  # window,pane,tab設置
+-  Plugin::GUI.ui_setting.each { |window_slug, panes|
+-    window = Plugin::GUI::Window.instance(window_slug,  Environment::NAME)
+-    window.set_icon File.expand_path(Skin.get('icon.png'))
+-    window << Plugin::GUI::Postbox.instance
+-    if panes.empty?
+-      panes = { default: [] } end
+-    panes.each { |pane_slug, tabs|
+-      pane = Plugin::GUI::Pane.instance(pane_slug)
+-      tabs.each { |tab_slug|
+-        pane << Plugin::GUI::Tab.instance(tab_slug) }
+-      window << pane } }
+-
+-  # 互換性のため。ステータスバーの更新。ツールキットプラグインで定義されているgui_window_rewindstatusを呼ぶこと
+-  on_rewindstatus do |text|
+-    Plugin.call(:gui_window_rewindstatus, Plugin::GUI::Window.instance(:default), text, 10)
+-  end
+-
+-  on_gui_destroy do |widget|
+-    widget.parent.remove(widget) if widget.respond_to?(:parent)
+-    widget.children.each(&:destroy) if widget.respond_to?(:children) end
+-
+-  filter_tabs do |set|
+-    [(set || {}).merge(Plugin::GUI::Tab.cuscaded)]
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/hierarchy_child.rb mikutter/core/plugin/gui/hierarchy_child.rb
+--- mikutter.orig/core/plugin/gui/hierarchy_child.rb	2014-07-02 06:51:40.905714168 +0900
++++ mikutter/core/plugin/gui/hierarchy_child.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,87 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ウィンドウパーツ階層構造の子
+-
+-module Plugin::GUI::HierarchyChild
+-
+-  class << self
+-    def included(klass)
+-      klass.extend(Extended)
+-    end
+-  end
+-
+-  attr_reader :parent
+-
+-  # 親を _parent_ に設定
+-  # ==== Args
+-  # [parent] 親
+-  # ==== Return
+-  # self
+-  def set_parent(parent)
+-    type_strict parent => @parent_class
+-    return self if @parent == parent
+-    @parent.remove(self) if @parent
+-    @parent = parent
+-    if self.class.set_parent_event
+-      Plugin.call(self.class.set_parent_event, self, parent) end
+-    self end
+-
+-  def active_class_of(klass)
+-    self if is_a? klass end
+-
+-  # 先祖のうち、 _klass_ と is_a? 関係にあるものを返す
+-  # ==== Args
+-  # [klass] 探すクラス
+-  # ==== Return
+-  # マッチしたウィジェットかfalse
+-  def ancestor_of(klass)
+-    if self.is_a? klass
+-      self
+-    elsif @parent.is_a? Plugin::GUI::HierarchyChild
+-      @parent.ancestor_of(klass)
+-    else @parent.is_a? klass
+-      @parent end end
+-
+-  # 親を再帰的に辿り、selfをアクティブに設定する
+-  # ==== Args
+-  # [just_this] 再帰的に呼び出されたのではなく、直接これをアクティブに指定されたなら真
+-  # [by_toolkit] UIツールキットの入力でアクティブになった場合真
+-  # ==== Return
+-  # self
+-  def active!(just_this=true, by_toolkit=false)
+-    @parent.set_active_child(self, by_toolkit).active!(false, by_toolkit)
+-    self end
+-
+-  module Extended
+-    attr_reader :parent_class
+-
+-    # set_parentが呼ばれた時に発生させるイベントを設定する
+-    def set_parent_event(event = nil)
+-      if event
+-        @set_parent_event = event
+-      else
+-        @set_parent_event end end
+-
+-    # 親クラスを設定する。親にはこのクラスのインスタンス以外認めない
+-    # ==== Args
+-    # [klass] 親クラス
+-    def set_parent_class(klass)
+-      @parent_class = klass end
+-
+-    # 親クラスを再帰的にたどっていって、一番上の親クラスを返す
+-    def ancestor
+-      if @parent_class.respond_to? :ancestor
+-        @parent_class.ancestor
+-      else
+-        @parent_class end end
+-
+-    # 現在アクティブなインスタンスを返す
+-    # ==== Return
+-    # アクティブなインスタンス又はnil
+-    def active
+-      widget = ancestor.active
+-      widget.active_class_of(self) if widget end
+-
+-  end
+-
+-end
+-
+diff -Nur mikutter.orig/core/plugin/gui/hierarchy_parent.rb mikutter/core/plugin/gui/hierarchy_parent.rb
+--- mikutter.orig/core/plugin/gui/hierarchy_parent.rb	2014-07-02 06:51:40.906714168 +0900
++++ mikutter/core/plugin/gui/hierarchy_parent.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,98 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ウィンドウパーツ階層構造の親
+-# これをincludeするクラスは、クラスメソッドとしてactiveを実装している必要がある
+-
+-module Plugin::GUI::HierarchyParent
+-
+-  class << self
+-    def included(klass)
+-      klass.extend(Extended)
+-    end
+-  end
+-
+-  attr_reader :active_child
+-
+-  # 子を追加する
+-  # ==== Args
+-  # [child] 子のインスタンス
+-  # [index] 挿入するインデックス
+-  # ==== Return
+-  # self
+-  def add_child(child, index=children.size)
+-    type_strict child => Plugin::GUI::HierarchyChild
+-    return self if child.parent == self
+-    children.insert(index, child)
+-    child.set_parent(self)
+-    @active_child ||= child
+-    self end
+-  alias << add_child
+-
+-  # _child_ のn順番を変更する。 _new_index_ 以降はひとつづつシフトする
+-  # ==== Args
+-  # [child] 子
+-  # [new_index] 新しく入れるインデックス
+-  def reorder_child(child, new_index)
+-    type_strict child => Plugin::GUI::HierarchyChild
+-    if children.include?(child)
+-      @children.delete(child)
+-      @children.insert(new_index, child)
+-      Plugin.call(:gui_child_reordered, self, child, new_index)
+-    else
+-      error "the widget #{child.inspect} is not child of #{self.inspect}" end
+-    self end
+-
+-  # 子を削除する
+-  # ==== Args
+-  # [child] 削除する子
+-  # ==== Return
+-  # self
+-  def remove(child)
+-    children.delete(child)
+-    if @active_child == child
+-      @active_child = nil end
+-    self end
+-
+-  # 子の配列を返す
+-  # ==== Return
+-  # 子の配列
+-  def children
+-    @children ||= [] end
+-
+-  # 子 _child_ をアクティブに設定する
+-  # ==== Args
+-  # [child] アクティブにする子
+-  # [by_toolkit] UIツールキットの入力でアクティブになった場合真
+-  # ==== Return
+-  # self
+-  def set_active_child(child, by_toolkit=false)
+-    type_strict child => tcor(Plugin::GUI::HierarchyChild, NilClass)
+-    @active_child = child
+-    Plugin.call(:gui_child_activated, self, child, by_toolkit) if child
+-    notice "active child set #{self.inspect} => #{child.inspect}"
+-    self end
+-
+-  # このインスタンス以下の、アクティブな祖先のリストを返す。
+-  # ==== Return
+-  # アクティブな子、孫、…のリスト 又は空の配列
+-  def active_chain
+-    if @active_child
+-      result = [@active_child]
+-      ancestors = @active_child.respond_to?(:active_chain) && @active_child.active_chain
+-      ancestors ? result + ancestors : result
+-    else
+-      [] end end
+-
+-  # active_chain が返すインスタンスのうち、最初に _klass_ とis_a関係にあるものを返す。
+-  # ==== Args
+-  # [klass] クラス
+-  # ==== Return
+-  # 一致する祖先か見つからなければnil
+-  def active_class_of(klass)
+-    active_chain.find{ |child| child.is_a? klass } end
+-
+-  module Extended
+-    # 子を追加するデフォルトのインスタンスを返す
+-    def add_default
+-      active end
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gui/.mikutter.yml mikutter/core/plugin/gui/.mikutter.yml
+--- mikutter.orig/core/plugin/gui/.mikutter.yml	2014-07-02 06:51:40.905714168 +0900
++++ mikutter/core/plugin/gui/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
+@@ -1,10 +0,0 @@
+----
+-slug: :gui
+-depends:
+-  mikutter: '0.2'
+-  plugin:
+-    - uitranslator
+-version: '1.0'
+-author: toshi_a
+-name: GUI
+-description: プラグインがグラフィカルなインターフェイスを提供するための各種イベントを追加する
+diff -Nur mikutter.orig/core/plugin/gui/pane.rb mikutter/core/plugin/gui/pane.rb
+--- mikutter.orig/core/plugin/gui/pane.rb	2014-07-02 06:51:40.906714168 +0900
++++ mikutter/core/plugin/gui/pane.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,42 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ペインインターフェイスを提供するクラス
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_parent')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'window')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::Pane
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyParent
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::Widget
+-
+-  role :pane
+-
+-  set_parent_event :gui_pane_join_window
+-
+-  # instanceから呼ばれる。勝手に作成しないこと
+-  def initialize(*args)
+-    super
+-    @@default ||= self
+-    Plugin.call(:pane_created, self)
+-  end
+-
+-  def active!(just_this=true, by_toolkit=false)
+-    @@default = self
+-    super end
+-
+-  def self.active
+-    @@default ||= instance(:default, "デフォルト")
+-  end
+-
+-  def add_child(child, index=children.size)
+-    result = super(child, index)
+-    if children[index+1] == @active_child
+-      Delayer.new{ child.active! } end
+-    result end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/po/ar/gui.po mikutter/core/plugin/gui/po/ar/gui.po
+--- mikutter.orig/core/plugin/gui/po/ar/gui.po	2014-07-02 06:51:40.906714168 +0900
++++ mikutter/core/plugin/gui/po/ar/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,27 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-# iorivur <fivo.11235813@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-20 18:30+0000\n"
+-"Last-Translator: iorivur <fivo.11235813@gmail.com>\n"
+-"Language-Team: Arabic (http://www.transifex.com/projects/p/mikutter/language/ar/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ar\n"
+-"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr "ليس حصلت على معلومات المستخدم عن %{user}"
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gui/po/de/gui.po mikutter/core/plugin/gui/po/de/gui.po
+--- mikutter.orig/core/plugin/gui/po/de/gui.po	2014-07-02 06:51:40.906714168 +0900
++++ mikutter/core/plugin/gui/po/de/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,27 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-# ゆっくりたん <yukkuri.pro@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-27 09:22+0000\n"
+-"Last-Translator: ゆっくりたん <yukkuri.pro@gmail.com>\n"
+-"Language-Team: German (http://www.transifex.com/projects/p/mikutter/language/de/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: de\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr "Es war nicht möglich, den Benutzer Informationen von %{user} bekommen"
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr "Standard"
+diff -Nur mikutter.orig/core/plugin/gui/po/el/gui.po mikutter/core/plugin/gui/po/el/gui.po
+--- mikutter.orig/core/plugin/gui/po/el/gui.po	2014-07-02 06:51:40.906714168 +0900
++++ mikutter/core/plugin/gui/po/el/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-09-26 10:29+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Greek (http://www.transifex.com/projects/p/mikutter/language/el/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: el\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr ""
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gui/po/en/gui.po mikutter/core/plugin/gui/po/en/gui.po
+--- mikutter.orig/core/plugin/gui/po/en/gui.po	2014-07-02 06:51:40.906714168 +0900
++++ mikutter/core/plugin/gui/po/en/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,27 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-# akkiesoft <akkiesoft@marokun.net>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-20 18:05+0000\n"
+-"Last-Translator: akkiesoft <akkiesoft@marokun.net>\n"
+-"Language-Team: English (http://www.transifex.com/projects/p/mikutter/language/en/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: en\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr "We could not acquire user information of %{user}."
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr "Default"
+diff -Nur mikutter.orig/core/plugin/gui/po/es/gui.po mikutter/core/plugin/gui/po/es/gui.po
+--- mikutter.orig/core/plugin/gui/po/es/gui.po	2014-07-02 06:51:40.907714169 +0900
++++ mikutter/core/plugin/gui/po/es/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2014-02-04 19:32+0000\n"
+-"Last-Translator: soulchainer <soulchainer@gmail.com>\n"
+-"Language-Team: Spanish (http://www.transifex.com/projects/p/mikutter/language/es/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: es\n"
+-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr "No se pudo obtener información de %{user}"
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr "Por defecto"
+diff -Nur mikutter.orig/core/plugin/gui/po/ro_RO/gui.po mikutter/core/plugin/gui/po/ro_RO/gui.po
+--- mikutter.orig/core/plugin/gui/po/ro_RO/gui.po	2014-07-02 06:51:40.907714169 +0900
++++ mikutter/core/plugin/gui/po/ro_RO/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,27 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-# ArianServ <arianserv@gmail.com>, 2014
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2014-04-13 07:34+0000\n"
+-"Last-Translator: ArianServ <arianserv@gmail.com>\n"
+-"Language-Team: Romanian (Romania) (http://www.transifex.com/projects/p/mikutter/language/ro_RO/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ro_RO\n"
+-"Plural-Forms: nplurals=3; plural=(n==1?0:(((n%100>19)||((n%100==0)&&(n!=0)))?2:1));\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr "Nu se pot obţine informaţiile utilizatorului %{user}."
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr "Implict"
+diff -Nur mikutter.orig/core/plugin/gui/po/ru/gui.po mikutter/core/plugin/gui/po/ru/gui.po
+--- mikutter.orig/core/plugin/gui/po/ru/gui.po	2014-07-02 06:51:40.907714169 +0900
++++ mikutter/core/plugin/gui/po/ru/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-08-04 08:47+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Russian (http://www.transifex.com/projects/p/mikutter/language/ru/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: ru\n"
+-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr ""
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gui/po/vi/gui.po mikutter/core/plugin/gui/po/vi/gui.po
+--- mikutter.orig/core/plugin/gui/po/vi/gui.po	2014-07-02 06:51:40.907714169 +0900
++++ mikutter/core/plugin/gui/po/vi/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-21 05:36+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Vietnamese (http://www.transifex.com/projects/p/mikutter/language/vi/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: vi\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr ""
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gui/po/zh/gui.po mikutter/core/plugin/gui/po/zh/gui.po
+--- mikutter.orig/core/plugin/gui/po/zh/gui.po	2014-07-02 06:51:40.907714169 +0900
++++ mikutter/core/plugin/gui/po/zh/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2014-04-11 19:51+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (http://www.transifex.com/projects/p/mikutter/language/zh/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr ""
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gui/po/zh_CN/gui.po mikutter/core/plugin/gui/po/zh_CN/gui.po
+--- mikutter.orig/core/plugin/gui/po/zh_CN/gui.po	2014-07-02 06:51:40.907714169 +0900
++++ mikutter/core/plugin/gui/po/zh_CN/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,27 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-# Vergil Gefenbauer <sephiroth8719@gmail.com>, 2013
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-20 14:25+0000\n"
+-"Last-Translator: Vergil Gefenbauer <sephiroth8719@gmail.com>\n"
+-"Language-Team: Chinese (China) (http://www.transifex.com/projects/p/mikutter/language/zh_CN/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh_CN\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr "获取用户 %{user} 的信息失败"
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr "默认"
+diff -Nur mikutter.orig/core/plugin/gui/po/zh_TW/gui.po mikutter/core/plugin/gui/po/zh_TW/gui.po
+--- mikutter.orig/core/plugin/gui/po/zh_TW/gui.po	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/po/zh_TW/gui.po	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# SOME DESCRIPTIVE TITLE.
+-# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+-# This file is distributed under the same license as the gui package.
+-# 
+-# Translators:
+-msgid ""
+-msgstr ""
+-"Project-Id-Version: mikutter\n"
+-"Report-Msgid-Bugs-To: \n"
+-"POT-Creation-Date: 2013-12-29 00:34+0900\n"
+-"PO-Revision-Date: 2013-07-28 17:40+0000\n"
+-"Last-Translator: Hotaka Hitagi\n"
+-"Language-Team: Chinese (Taiwan) (http://www.transifex.com/projects/p/mikutter/language/zh_TW/)\n"
+-"MIME-Version: 1.0\n"
+-"Content-Type: text/plain; charset=UTF-8\n"
+-"Content-Transfer-Encoding: 8bit\n"
+-"Language: zh_TW\n"
+-"Plural-Forms: nplurals=1; plural=0;\n"
+-
+-#: ../profiletab.rb:40
+-msgid "%{user} のユーザ情報が取得できませんでした"
+-msgstr ""
+-
+-#: ../window.rb:31
+-msgid "デフォルト"
+-msgstr ""
+diff -Nur mikutter.orig/core/plugin/gui/postbox.rb mikutter/core/plugin/gui/postbox.rb
+--- mikutter.orig/core/plugin/gui/postbox.rb	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/postbox.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,67 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ツイート投稿ウィジェット
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'window')
+-require File.expand_path File.join(File.dirname(__FILE__), 'timeline')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::Postbox
+-
+-  module PostboxParent; end
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::Widget
+-
+-  role :postbox
+-
+-  set_parent_class Plugin::GUI::Postbox::PostboxParent
+-
+-  attr_accessor :options, :poster
+-
+-  class << self
+-    # Postboxは、他のウィジェットと違ってキー入力中に他のロールに対するmikutterコマンドを実行すべきでない。
+-    # なので、find_role_ancestorは常に _find_ がPostboxの時だけ有効な値を返す
+-    # ==== Args
+-    # [find] 探すロール
+-    # ==== Return
+-    # findがPlugin::GUI::Postboxならそれを、それ以外ならnil
+-    def find_role_ancestor(find)
+-      self if role == find end
+-  end
+-
+-  def initialize(*args)
+-    super
+-    @options = {}
+-    Plugin.call(:postbox_created, self) end
+-
+-  alias __set_parent_postbox__ set_parent
+-  def set_parent(parent)
+-    Plugin.call(:gui_postbox_join_widget, self, parent)
+-    __set_parent_postbox__(parent)
+-  end
+-
+-  # このPostboxの内容を投稿する
+-  # ==== Return
+-  # self
+-  def post_it!
+-    Plugin.call(:gui_postbox_post, self)
+-    self end
+-
+-  # このPostboxがユーザの入力を受け付けているなら真。
+-  # 偽を返すPostboxは、投稿処理中か、投稿が完了して破棄されたもの
+-  # ==== Return
+-  # 編集中なら真
+-  def editable?
+-    editable = Plugin.filtering(:gui_postbox_input_editable, self, false)
+-    editable.last if editable end
+-
+-end
+-
+-class Plugin::GUI::Window
+-  include Plugin::GUI::Postbox::PostboxParent end
+-
+-class Plugin::GUI::Timeline
+-  include Plugin::GUI::Postbox::PostboxParent end
+diff -Nur mikutter.orig/core/plugin/gui/profile.rb mikutter/core/plugin/gui/profile.rb
+--- mikutter.orig/core/plugin/gui/profile.rb	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/profile.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,26 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# プロフィールタブを提供するクラス
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_parent')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'window')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::Profile
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyParent
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::Widget
+-
+-  role :profile
+-
+-  set_parent_event :gui_profile_join_tab
+-
+-  # instanceから呼ばれる。勝手に作成しないこと
+-  def initialize(*args)
+-    super
+-    Plugin.call(:profile_created, self)
+-  end
+-end
+diff -Nur mikutter.orig/core/plugin/gui/profiletab.rb mikutter/core/plugin/gui/profiletab.rb
+--- mikutter.orig/core/plugin/gui/profiletab.rb	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/profiletab.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,45 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_parent')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'window')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tablike')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::ProfileTab
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::HierarchyParent
+-  include Plugin::GUI::Widget
+-  include Plugin::GUI::TabLike
+-
+-  role :profiletab
+-
+-  set_parent_event :gui_profiletab_join_profile
+-
+-  attr_reader :user
+-  attr_accessor :profile_slug
+-
+-  def initialize(*args)
+-    super
+-    Plugin.call(:profiletab_created, self)
+-  end
+-
+-  # 完全なユーザ情報が取得できたらコールバックする
+-  def user_complete(&callback)
+-    type_strict user => User, callback => Proc
+-    if user[:exact]
+-      yield user
+-    else
+-      atomic {
+-        if not(defined?(@user_promise) and @user_promise)
+-          @user_promise = Service.primary.user_show(user_id: user[:id]).next{ |u|
+-            @user_promise = false
+-            u }.terminate{
+-            Plugin[:gui]._("%{user} のユーザ情報が取得できませんでした") % {user: user[:idname]}
+-          } end
+-        @user_promise = @user_promise.next{ |u| callback.call(u); u } } end
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/tab_child_widget.rb mikutter/core/plugin/gui/tab_child_widget.rb
+--- mikutter.orig/core/plugin/gui/tab_child_widget.rb	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/tab_child_widget.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,32 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'pane')
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::TabChildWidget
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::Widget
+-  
+-  role :tabchildwidget
+-
+-  def initialize(*args)
+-    super
+-    Plugin.call(:tabchildwidget_created, self)
+-  end
+-
+-  alias __set_parent_tabchildwidget__ set_parent
+-  def set_parent(tab)
+-    Plugin.call(:gui_tabchildwidget_join_tab, self, tab)
+-    __set_parent_tabchildwidget__(tab)
+-  end
+-
+-  def <<(messages)
+-    Plugin.call(:gui_tabchildwidget_add_messages, self, messages)
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/tablike.rb mikutter/core/plugin/gui/tablike.rb
+--- mikutter.orig/core/plugin/gui/tablike.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/tablike.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,92 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-module Plugin::GUI::TabLike
+-
+-  attr_reader :icon
+-  attr_accessor :deletable
+-
+-  def initialize(*args)
+-    @expand = true
+-    super
+-  end
+-
+-  # できるだけ小さく表示する
+-  # ==== Return
+-  # self
+-  def shrink
+-    @expand = false
+-    self end
+-
+-  # できるだけ大きく表示する
+-  # ==== Return
+-  # self
+-  def expand(new = true)
+-    @expand = new
+-    self end
+-
+-  def expand?
+-    @expand end
+-
+-  def pack_rule
+-    @pack_rule ||= [] end
+-
+-  def add_child(child, *args)
+-    result = super(child, *args)
+-    pack_rule[children.index(child)] = expand?
+-    result end
+-  alias << add_child
+-
+-  # タイムラインを作成してこの中に入れる
+-  # ==== Args
+-  # [slug] タイムラインスラッグ
+-  # [&proc] 処理
+-  # ==== Return
+-  # 新しく作成したタイムライン
+-  def timeline(slug, &proc)
+-    timeline = Plugin::GUI::Timeline.instance(slug)
+-    self << timeline
+-    timeline.instance_eval &proc if proc
+-    timeline end
+-
+-  # プロフィールを作成してこの中に入れる
+-  # ==== Args
+-  # [slug] プロフィールスラッグ
+-  # [&proc] 処理
+-  # ==== Return
+-  # 新しく作成したプロフィール
+-  def profile(slug, &proc)
+-    profile = Plugin::GUI::Profile.instance(slug)
+-    self << profile
+-    pack_rule.push(expand?)
+-    notice "pack_rule: #{pack_rule.inspect}"
+-    profile.instance_eval &proc if proc
+-    profile end
+-
+-  # UIツールキットのウィジェット(Gtk等)をタブに入れる
+-  # ==== Args
+-  # [widget] ウィジェット
+-  # ==== Return
+-  # self
+-  def nativewidget(widget)
+-    i_container = Plugin::GUI::TabChildWidget.instance
+-    self << i_container
+-    Plugin.call("gui_nativewidget_join_#{self.class.role}".to_sym, self, i_container, widget)
+-    pack_rule.push(expand?)
+-    self end
+-
+-  def set_icon(new)
+-    if @icon != new
+-      @icon = new
+-      Plugin.call(:gui_tab_change_icon, self) end
+-    self end
+-
+-  def set_deletable(new)
+-    @deletable = new
+-    self end
+-
+-  def name=(new_name)
+-    result = super new_name
+-    Plugin.call(:gui_tab_change_icon, self)
+-    result end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/tab.rb mikutter/core/plugin/gui/tab.rb
+--- mikutter.orig/core/plugin/gui/tab.rb	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/tab.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,59 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# タブのインターフェイスを提供するクラス
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'pane')
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_parent')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tablike')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab_toolbar')
+-
+-class Plugin::GUI::Tab
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::HierarchyParent
+-  include Plugin::GUI::Widget
+-  include Plugin::GUI::TabLike
+-
+-  role :tab
+-
+-  set_parent_event :gui_tab_join_pane
+-
+-  attr_reader :tab_toolbar
+-
+-  # instanceから呼ばれる。勝手に作成しないこと
+-  def initialize(*args)
+-    super
+-    @temporary_tab = false
+-    position = Plugin::GUI.get_tab_order(slug)
+-    if position
+-      window_slug, pane_slug, order = position
+-      pane = Plugin::GUI::Pane.instance(pane_slug)
+-      index = where_should_insert_it(slug, pane.children.map(&:slug), order)
+-      notice "tab initialize #{slug} #{position.inspect} #{index}"
+-      pane.add_child(self, index)
+-    else
+-      Plugin::GUI::Pane.add_default << self
+-    end
+-    @tab_toolbar = Plugin::GUI::TabToolbar.instance
+-    Plugin.call(:tab_created, self)
+-    shrink
+-    add_child(@tab_toolbar)
+-    expand
+-  end
+-
+-  # このタブが一時的なタブであることを宣言する。
+-  # タブの並び順に記録されないようになり、次回起動時にタブが生成されない。
+-  # ==== Return
+-  # self
+-  def temporary_tab(value=true)
+-    @temporary_tab = value end
+-
+-  # このタブが一時的なタブかどうかを返す
+-  # ==== Return
+-  # self
+-  def temporary_tab?
+-    @temporary_tab end
+-end
+diff -Nur mikutter.orig/core/plugin/gui/tab_toolbar.rb mikutter/core/plugin/gui/tab_toolbar.rb
+--- mikutter.orig/core/plugin/gui/tab_toolbar.rb	2014-07-02 06:51:40.908714169 +0900
++++ mikutter/core/plugin/gui/tab_toolbar.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,29 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'pane')
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-# タブにコマンドを表示するウィジェット
+-class Plugin::GUI::TabToolbar
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::Widget
+-
+-  role :tab_toolbar
+-
+-  set_parent_event :gui_tab_toolbar_join_tab
+-
+-  def initialize(*args)
+-    super
+-    Plugin.call(:tab_toolbar_created, self)
+-  end
+-
+-  def rewind
+-    Plugin.call(:tab_toolbar_rewind, self)
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/test/test_cuscadable.rb mikutter/core/plugin/gui/test/test_cuscadable.rb
+--- mikutter.orig/core/plugin/gui/test/test_cuscadable.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/test/test_cuscadable.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,56 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-class Plugin
+-  module GUI; end end
+-
+-require 'test/unit'
+-require File.expand_path(File.dirname(__FILE__) + '/../../../lib/test_unit_extensions')
+-require File.expand_path(File.dirname(__FILE__) + '/../cuscadable')
+-require File.expand_path(File.dirname(__FILE__) + '/../../../utils')
+-
+-class TC_PluginGUICuscadable < Test::Unit::TestCase
+-
+-  def setup
+-    @klass = Class.new{
+-      include Plugin::GUI::Cuscadable
+-    }
+-  end
+-
+-  must "can read name and slug" do
+-    cuscadable = @klass.instance(:slug, "name")
+-    assert_equal(:slug, cuscadable.slug)
+-    assert_equal("name", cuscadable.name)
+-  end
+-
+-  must "cannot create class via new method" do # !> assigned but unused variable - instance
+-    assert_raise(NoMethodError){@klass.new(:slug, "name")}
+-  end
+-
+-  must "can get next item" do
+-    first = @klass.instance(:first, "tab 1")
+-    second = @klass.instance(:second, "tab 2")
+-    third = @klass.instance(:third, "tab 3")
+-    assert_equal(true, first.next == second) # !> assigned but unused variable - instance
+-    assert_equal(true, second.next == third)
+-    assert_equal(true, third.next == first)
+-  end
+-
+-  must "can get prev item" do
+-    first = @klass.instance(:first, "tab 1")
+-    second = @klass.instance(:second, "tab 2")
+-    third = @klass.instance(:third, "tab 3")
+-    assert_equal(true, first.prev == third)
+-    assert_equal(true, second.prev == first)
+-    assert_equal(true, third.prev == second)
+-  end
+-
+-end
+-# >> Run options: 
+-# >> 
+-# >> # Running tests:
+-# >> 
+-# >> ....
+-# >> 
+-# >> Finished tests in 0.001069s, 3741.1988 tests/s, 8417.6974 assertions/s.
+-# >> 
+-# >> 4 tests, 9 assertions, 0 failures, 0 errors, 0 skips
+diff -Nur mikutter.orig/core/plugin/gui/test/test_dsl.rb mikutter/core/plugin/gui/test/test_dsl.rb
+--- mikutter.orig/core/plugin/gui/test/test_dsl.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/test/test_dsl.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,27 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-# class Plugin
+-#   module GUI; end end
+-
+-require 'test/unit'
+-Dir::chdir File.dirname(__FILE__) + '/../../../'
+-require File.expand_path(File.dirname(__FILE__) + '/lib/test_unit_extensions')
+-require File.expand_path(File.dirname(__FILE__) + '/utils')
+-require File.expand_path(File.dirname(__FILE__) + '/plugin')
+-require File.expand_path(File.dirname(__FILE__) + '/plugin/gui/gui')
+-
+-class TC_PluginGUIDSL < Test::Unit::TestCase
+-
+-  def setup
+-  end
+-
+-  must "can initialize tab" do
+-	Plugin.create :home_timeline do
+-      tab :home_timeline, "Home Timeline" do
+-        timeline :home_timeline end end
+-  end
+-
+-end
+-# ~> /usr/lib/ruby/1.9.1/rubygems/custom_require.rb:36:in `require': cannot load such file -- /home/toshi/Documents/hobby/utils (LoadError)
+-# ~> 	from /usr/lib/ruby/1.9.1/rubygems/custom_require.rb:36:in `require'
+-# ~> 	from -:9:in `<main>'
+diff -Nur mikutter.orig/core/plugin/gui/test/test_hierarchy_parent.rb mikutter/core/plugin/gui/test/test_hierarchy_parent.rb
+--- mikutter.orig/core/plugin/gui/test/test_hierarchy_parent.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/test/test_hierarchy_parent.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,60 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-class Plugin
+-  module GUI; end end
+-
+-require 'test/unit'
+-require File.expand_path(File.dirname(__FILE__) + '/../../../lib/test_unit_extensions')
+-require File.expand_path(File.dirname(__FILE__) + '/../hierarchy_parent')
+-require File.expand_path(File.dirname(__FILE__) + '/../hierarchy_child')
+-require File.expand_path(File.dirname(__FILE__) + '/../../../utils')
+-
+-class TC_PluginGUIHierarchyParent < Test::Unit::TestCase
+-
+-  def setup
+-    @kparent = Class.new{
+-      include Plugin::GUI::HierarchyParent
+-      class << self
+-        attr_accessor :active end }
+-
+-    @kchild = Class.new{ # !> instance variable @parent_class not initialized
+-      include Plugin::GUI::HierarchyParent
+-      include Plugin::GUI::HierarchyChild }
+-    @kchild.set_parent_class @kparent
+-
+-    @kgrandchild = Class.new{
+-      include Plugin::GUI::HierarchyChild }
+-    @kgrandchild.set_parent_class @kchild
+-  end
+-
+-  must "set child" do
+-    parent = @kparent.new
+-    child = @kchild.new
+-    parent << child
+-    assert_equal(true, parent.children.first == child)
+-    assert_equal(true, child.parent == parent)
+-  end
+-
+-  must "child activation" do
+-    parent = @kparent.new
+-    @kparent.active = parent
+-    children = [@kchild.new, @kchild.new]
+-    grandchildren = [@kgrandchild.new]
+-    parent << children[0] << children[1]
+-    children[0] << grandchildren[0]
+-    assert_equal(children[0], parent.active_child)
+-    assert_equal([children[0], grandchildren[0]], parent.active_chain)
+-    assert_equal(grandchildren[0], parent.active_class_of(@kgrandchild))
+-    assert_equal(grandchildren[0], @kgrandchild.active)
+-  end
+-
+-end
+-# >> Run options: 
+-# >> 
+-# >> # Running tests:
+-# >> 
+-# >> ..
+-# >> 
+-# >> Finished tests in 0.000810s, 2470.4076 tests/s, 7411.2228 assertions/s.
+-# >> 
+-# >> 2 tests, 6 assertions, 0 failures, 0 errors, 0 skips
+diff -Nur mikutter.orig/core/plugin/gui/test/test_widget.rb mikutter/core/plugin/gui/test/test_widget.rb
+--- mikutter.orig/core/plugin/gui/test/test_widget.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/test/test_widget.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,44 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-class Plugin
+-  module GUI; end end
+-
+-require 'test/unit'
+-require File.expand_path(File.dirname(__FILE__) + '/../../../lib/test_unit_extensions')
+-require File.expand_path(File.dirname(__FILE__) + '/../widget')
+-require File.expand_path(File.dirname(__FILE__) + '/../hierarchy_parent')
+-require File.expand_path(File.dirname(__FILE__) + '/../hierarchy_child')
+-require File.expand_path(File.dirname(__FILE__) + '/../../../utils')
+-
+-class TC_PluginGUIWidget < Test::Unit::TestCase
+-
+-  def setup
+-    @kparent = Class.new{
+-      include Plugin::GUI::HierarchyParent
+-      include Plugin::GUI::Widget
+-      role :kparent
+-      attr_accessor :slug
+-      class << self
+-        attr_accessor :active end }
+-
+-    @kchild = Class.new{
+-      include Plugin::GUI::HierarchyParent
+-      include Plugin::GUI::HierarchyChild
+-      include Plugin::GUI::Widget
+-      role :kchild }
+-    @kchild.set_parent_class @kparent
+-  end
+-
+-  must "get role" do
+-    assert_equal(:kparent, @kparent.role)
+-    assert_equal(:kchild, @kchild.role)
+-  end
+-
+-  must "role ancestor" do
+-    assert_equal(@kparent, @kchild.find_role_ancestor(:kparent))
+-    assert_equal(@kchild, @kchild.find_role_ancestor(:kchild))
+-    assert_equal(@kparent, @kparent.find_role_ancestor(:kparent))
+-    assert_nil(@kparent.find_role_ancestor(:kchild))
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/timeline.rb mikutter/core/plugin/gui/timeline.rb
+--- mikutter.orig/core/plugin/gui/timeline.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/timeline.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,99 +0,0 @@
+-# -*- coding: utf-8 -*-
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'pane')
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_child')
+-require File.expand_path File.join(File.dirname(__FILE__), 'tab')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::Timeline
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyChild
+-  include Plugin::GUI::HierarchyParent
+-  include Plugin::GUI::Widget
+-
+-  role :timeline
+-
+-  set_parent_event :gui_timeline_join_tab
+-
+-  def initialize(*args)
+-    super
+-    Plugin.call(:timeline_created, self)
+-  end
+-
+-  def <<(messages)
+-    messages = Messages.new(messages) if messages.is_a? Enumerable
+-    Plugin.call(:gui_timeline_add_messages, self, messages)
+-  rescue TypedArray::UnexpectedTypeException => e
+-    error "type mismatch!"
+-    raise e
+-  end
+-
+-  # タイムラインの中のツイートを全て削除する
+-  def clear
+-    Plugin.call(:gui_timeline_clear, self) end
+-
+-  # タイムラインの一番上にスクロール
+-  def scroll_to_top
+-    Plugin.call(:gui_timeline_scroll_to_top, self) end
+-
+-  # このタイムラインをアクティブにする。また、子のPostboxは非アクティブにする
+-  # ==== Return
+-  # self
+-  def active!(just_this=true, by_toolkit=false)
+-    set_active_child(nil, by_toolkit) if just_this
+-    super end
+-
+-  # 選択されているMessageを返す
+-  # ==== Return
+-  # 選択されているMessage
+-  def selected_messages
+-    messages = Plugin.filtering(:gui_timeline_selected_messages, self, [])
+-    messages[1] if messages.is_a? Array end
+-
+-  # _in_reply_to_message_ に対するリプライを入力するPostboxを作成してタイムライン上に表示する
+-  # ==== Args
+-  # [in_reply_to_message] リプライ先のツイート
+-  # [options] Postboxのオプション
+-  def create_reply_postbox(in_reply_to_message, options = {})
+-    i_postbox = Plugin::GUI::Postbox.instance
+-    i_postbox.options = options
+-    i_postbox.poster = in_reply_to_message
+-    notice "created postbox: #{i_postbox.inspect}"
+-    self.add_child i_postbox
+-  end
+-
+-  # Postboxを作成してこの中に入れる
+-  # ==== Args
+-  # [options] 設定値
+-  # ==== Return
+-  # 新しく作成したPostbox
+-  def postbox(options = {})
+-    postbox = Plugin::GUI::Postbox.instance
+-    postbox.options = options
+-    self.add_child postbox
+-    postbox
+-  end
+-
+-  # このタイムライン内の _message_ の部分文字列が選択されている場合それを返す。
+-  # 何も選択されていない場合はnilを返す
+-  # ==== Args
+-  # [message] 調べるMessageのインスタンス
+-  # ==== Return
+-  # 選択されたテキスト
+-  def selected_text(message)
+-    type_strict message => Message
+-    result = Plugin.filtering(:gui_timeline_selected_text, self, message, nil)
+-    result.last if result end
+-
+-  # Messageを並べる順序を数値で返すブロックを設定する
+-  # ==== Args
+-  # [&block] 並び順
+-  # ==== Return
+-  # self
+-  def order(&block)
+-    Plugin.call(:gui_timeline_set_order, self, block)
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/widget.rb mikutter/core/plugin/gui/widget.rb
+--- mikutter.orig/core/plugin/gui/widget.rb	2014-07-02 06:51:40.909714169 +0900
++++ mikutter/core/plugin/gui/widget.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,95 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ウィンドウパーツ共通
+-
+-module Plugin::GUI::Widget
+-
+-  class << self
+-    def included(klass)
+-      klass.extend(Extended)
+-    end
+-  end
+-
+-  module Extended
+-    # このクラスのロールを _new_ に設定する。また、引数なしで呼び出した場合は現在のロールを返す
+-    # ==== Args
+-    # [new] 新しいロール
+-    # ==== Return
+-    # 新しいロール。 _new_ が省略された場合は現在のロール
+-    def role(new = nil)
+-      if new
+-        @role = new
+-      else
+-        @role end end
+-
+-    # 自分と先祖の中から _role_ をもつクラスを探す
+-    # ==== Args
+-    # [find] 探すロール
+-    # ==== Return
+-    # 先祖にロール _role_ をもつクラスがあればそのクラス、無ければnil
+-    def find_role_ancestor(find)
+-      if role == find
+-        self
+-      elsif respond_to? :parent_class and parent_class
+-        parent_class.find_role_ancestor(find) end end
+-  end
+-
+-  # ツールキット上で、このウィジェットを破棄する。
+-  # 親からは自動的に切り離される。
+-  # ==== Return
+-  # self
+-  def destroy
+-    if not destroyed?
+-      notice "gui: Plugin::GUI::Widget#destroy: #{self.inspect}"
+-      Plugin.call(:gui_destroy, self)
+-      self.class.cuscaded.delete(slug)
+-      @destroy = true
+-      if @unload_hook and self.plugin
+-        plugin = Plugin.instance(self.plugin)
+-        if plugin
+-          notice "detach unload hook. plugin:#{plugin}, widget: #{self}"
+-          plugin.detach(:unload, @unload_hook) end end end
+-    self end
+-
+-  # ツールキット上で、ウィジェットが削除されているかどうかを調べる。
+-  # 削除待ちの場合も真を返す。
+-  # ==== Return
+-  # 削除されているなら真
+-  def destroyed?
+-    return true if defined?(@destroy) and @destroy
+-    Plugin.filtering(:gui_destroyed, self).first end
+-
+-  def instance_eval_with_delegate(delegatee, &proc)
+-    before_delegatee = @delegatee
+-    begin
+-      @delegatee = delegatee
+-      instance_eval &proc
+-    ensure
+-      @delegatee = before_delegatee
+-    end
+-  end
+-
+-  def inspect
+-    "#<#{self.class.to_s}(role=#{self.class.role},slug=#{slug})>"
+-  end
+-
+-  def to_s
+-    inspect
+-  end
+-
+-  # 自分以下の子を、{slug: {slug: ...}}形式の連想配列で返す
+-  # ==== Return
+-  # 親子関係の連想配列
+-  def to_hash
+-    if is_a? Plugin::GUI::HierarchyParent
+-      result = {}
+-      children.each{ |child|
+-        result[child.slug] = child.to_hash }
+-      result end end
+-
+-  def method_missing(*args, &block)
+-    if defined?(@delegatee) and @delegatee
+-      @delegatee.__send__(*args, &block)
+-    else
+-      super end end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/gui/window.rb mikutter/core/plugin/gui/window.rb
+--- mikutter.orig/core/plugin/gui/window.rb	2014-07-02 06:51:40.910714169 +0900
++++ mikutter/core/plugin/gui/window.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,39 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ウィンドウインターフェイスを提供するクラス
+-
+-require File.expand_path File.join(File.dirname(__FILE__), 'cuscadable')
+-require File.expand_path File.join(File.dirname(__FILE__), 'hierarchy_parent')
+-require File.expand_path File.join(File.dirname(__FILE__), 'widget')
+-
+-class Plugin::GUI::Window
+-
+-  include Plugin::GUI::Cuscadable
+-  include Plugin::GUI::HierarchyParent
+-  include Plugin::GUI::Widget
+-
+-  role :window
+-
+-  attr_reader :icon
+-
+-  # instanceから呼ばれる。勝手に作成しないこと
+-  def initialize(*args)
+-    super
+-    @@active ||= self
+-    Plugin.call(:window_created, self)
+-  end
+-
+-  # self がアクティブになったことを報告する
+-  def active!(just_this=true, by_toolkit=false)
+-    @@active = self
+-  end
+-
+-  def self.active
+-    @@active ||= instance(:default, _("デフォルト"))
+-  end
+-
+-  def set_icon(icon)
+-    @icon = icon
+-    Plugin.call(:gui_window_change_icon, self, icon)
+-  end
+-
+-end
+diff -Nur mikutter.orig/core/plugin/streaming/.mikutter.yml mikutter/core/plugin/streaming/.mikutter.yml
+--- mikutter.orig/core/plugin/streaming/.mikutter.yml	2014-07-02 06:51:40.951714179 +0900
++++ mikutter/core/plugin/streaming/.mikutter.yml	2014-07-02 06:20:44.121668999 +0900
+@@ -3,7 +3,6 @@
+ depends:
+   mikutter: '0.2'
+   plugin:
+-  - gui
+   - uitranslator
+ version: '1.0'
+ author: toshi_a
+diff -Nur mikutter.orig/Gemfile mikutter/Gemfile
+--- mikutter.orig/Gemfile	2014-07-02 06:51:40.846714154 +0900
++++ mikutter/Gemfile	2014-07-02 06:20:44.096669004 +0900
+@@ -23,7 +23,4 @@
+   Dir.glob(File.expand_path(File.join(File.dirname(__FILE__), "core/plugin/*/Gemfile"))){ |path|
+     eval File.open(path).read
+   }
+-  Dir.glob(File.expand_path("~/.mikutter/plugin/*/Gemfile")){ |path|
+-    eval File.open(path).read
+-  }
+ end
