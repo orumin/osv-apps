@@ -1,5 +1,5 @@
 diff -Nur mikutter.orig/core/plugin/change_account/account_control.rb mikutter/core/plugin/change_account/account_control.rb
---- mikutter.orig/core/plugin/change_account/account_control.rb	2014-07-02 06:51:40.883714163 +0900
+--- mikutter.orig/core/plugin/change_account/account_control.rb	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/account_control.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,89 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -92,7 +92,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/account_control.rb mikutter/c
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/change_account/change_account.rb mikutter/core/plugin/change_account/change_account.rb
---- mikutter.orig/core/plugin/change_account/change_account.rb	2014-07-02 06:51:40.884714163 +0900
+--- mikutter.orig/core/plugin/change_account/change_account.rb	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/change_account.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,206 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -302,7 +302,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/change_account.rb mikutter/co
 -end
 -
 diff -Nur mikutter.orig/core/plugin/change_account/interactive.rb mikutter/core/plugin/change_account/interactive.rb
---- mikutter.orig/core/plugin/change_account/interactive.rb	2014-07-02 06:51:40.884714163 +0900
+--- mikutter.orig/core/plugin/change_account/interactive.rb	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/interactive.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,123 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -429,7 +429,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/interactive.rb mikutter/core/
 -
 -end
 diff -Nur mikutter.orig/core/plugin/change_account/.mikutter.yml mikutter/core/plugin/change_account/.mikutter.yml
---- mikutter.orig/core/plugin/change_account/.mikutter.yml	2014-07-02 06:51:40.883714163 +0900
+--- mikutter.orig/core/plugin/change_account/.mikutter.yml	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
 @@ -1,12 +0,0 @@
 ----
@@ -445,7 +445,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/.mikutter.yml mikutter/core/p
 -name: Change Account
 -description: アカウント情報をGUIで入力するプラグイン
 diff -Nur mikutter.orig/core/plugin/change_account/po/ar/change_account.po mikutter/core/plugin/change_account/po/ar/change_account.po
---- mikutter.orig/core/plugin/change_account/po/ar/change_account.po	2014-07-02 06:51:40.884714163 +0900
+--- mikutter.orig/core/plugin/change_account/po/ar/change_account.po	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/po/ar/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,117 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -566,7 +566,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/ar/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/de/change_account.po mikutter/core/plugin/change_account/po/de/change_account.po
---- mikutter.orig/core/plugin/change_account/po/de/change_account.po	2014-07-02 06:51:40.884714163 +0900
+--- mikutter.orig/core/plugin/change_account/po/de/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/de/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,117 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -687,7 +687,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/de/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/el/change_account.po mikutter/core/plugin/change_account/po/el/change_account.po
---- mikutter.orig/core/plugin/change_account/po/el/change_account.po	2014-07-02 06:51:40.885714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/el/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/el/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,118 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -809,7 +809,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/el/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/en/change_account.po mikutter/core/plugin/change_account/po/en/change_account.po
---- mikutter.orig/core/plugin/change_account/po/en/change_account.po	2014-07-02 06:51:40.885714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/en/change_account.po	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/po/en/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,127 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -940,7 +940,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/en/change_account.po mikut
 -msgid "次へ"
 -msgstr "Next"
 diff -Nur mikutter.orig/core/plugin/change_account/po/es/change_account.po mikutter/core/plugin/change_account/po/es/change_account.po
---- mikutter.orig/core/plugin/change_account/po/es/change_account.po	2014-07-02 06:51:40.885714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/es/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/es/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,117 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1061,7 +1061,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/es/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/ro_RO/change_account.po mikutter/core/plugin/change_account/po/ro_RO/change_account.po
---- mikutter.orig/core/plugin/change_account/po/ro_RO/change_account.po	2014-07-02 06:51:40.885714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/ro_RO/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/ro_RO/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,118 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1183,7 +1183,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/ro_RO/change_account.po mi
 -msgid "次へ"
 -msgstr "Următor"
 diff -Nur mikutter.orig/core/plugin/change_account/po/ru/change_account.po mikutter/core/plugin/change_account/po/ru/change_account.po
---- mikutter.orig/core/plugin/change_account/po/ru/change_account.po	2014-07-02 06:51:40.885714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/ru/change_account.po	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/po/ru/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,117 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1304,7 +1304,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/ru/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/vi/change_account.po mikutter/core/plugin/change_account/po/vi/change_account.po
---- mikutter.orig/core/plugin/change_account/po/vi/change_account.po	2014-07-02 06:51:40.885714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/vi/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/vi/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,117 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1425,7 +1425,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/vi/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/zh/change_account.po mikutter/core/plugin/change_account/po/zh/change_account.po
---- mikutter.orig/core/plugin/change_account/po/zh/change_account.po	2014-07-02 06:51:40.886714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/zh/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/zh/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,117 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1546,7 +1546,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/zh/change_account.po mikut
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/zh_CN/change_account.po mikutter/core/plugin/change_account/po/zh_CN/change_account.po
---- mikutter.orig/core/plugin/change_account/po/zh_CN/change_account.po	2014-07-02 06:51:40.886714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/zh_CN/change_account.po	2014-11-09 23:57:07.473721792 +0900
 +++ mikutter/core/plugin/change_account/po/zh_CN/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,118 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1668,7 +1668,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/zh_CN/change_account.po mi
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/change_account/po/zh_TW/change_account.po mikutter/core/plugin/change_account/po/zh_TW/change_account.po
---- mikutter.orig/core/plugin/change_account/po/zh_TW/change_account.po	2014-07-02 06:51:40.886714164 +0900
+--- mikutter.orig/core/plugin/change_account/po/zh_TW/change_account.po	2014-11-09 23:57:07.474721767 +0900
 +++ mikutter/core/plugin/change_account/po/zh_TW/change_account.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,118 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -1790,7 +1790,7 @@ diff -Nur mikutter.orig/core/plugin/change_account/po/zh_TW/change_account.po mi
 -msgid "次へ"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/account_box.rb mikutter/core/plugin/gtk/account_box.rb
---- mikutter.orig/core/plugin/gtk/account_box.rb	2014-07-02 06:51:40.901714167 +0900
+--- mikutter.orig/core/plugin/gtk/account_box.rb	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/account_box.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,57 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -1851,7 +1851,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/account_box.rb mikutter/core/plugin/gtk/
 -    @menu.show_all.popup(nil, nil, event.button, event.time) end
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/delayer.rb mikutter/core/plugin/gtk/delayer.rb
---- mikutter.orig/core/plugin/gtk/delayer.rb	2014-07-02 06:51:40.901714167 +0900
+--- mikutter.orig/core/plugin/gtk/delayer.rb	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/delayer.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,19 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -1874,14 +1874,14 @@ diff -Nur mikutter.orig/core/plugin/gtk/delayer.rb mikutter/core/plugin/gtk/dela
 -  boot
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/Gemfile mikutter/core/plugin/gtk/Gemfile
---- mikutter.orig/core/plugin/gtk/Gemfile	2014-07-02 06:51:40.900714167 +0900
+--- mikutter.orig/core/plugin/gtk/Gemfile	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/Gemfile	1970-01-01 09:00:00.000000000 +0900
 @@ -1,3 +0,0 @@
 -source 'https://rubygems.org'
 -
 -gem 'gtk2', '2.2.0'
 diff -Nur mikutter.orig/core/plugin/gtk/gtk.rb mikutter/core/plugin/gtk/gtk.rb
---- mikutter.orig/core/plugin/gtk/gtk.rb	2014-07-02 06:51:40.901714167 +0900
+--- mikutter.orig/core/plugin/gtk/gtk.rb	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/gtk.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,613 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -2498,7 +2498,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/gtk.rb mikutter/core/plugin/gtk/gtk.rb
 -  class GtkError < Exception
 -  end end
 diff -Nur mikutter.orig/core/plugin/gtk/konami_watcher.rb mikutter/core/plugin/gtk/konami_watcher.rb
---- mikutter.orig/core/plugin/gtk/konami_watcher.rb	2014-07-02 06:51:40.901714167 +0900
+--- mikutter.orig/core/plugin/gtk/konami_watcher.rb	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/konami_watcher.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,30 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -2532,7 +2532,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/konami_watcher.rb mikutter/core/plugin/g
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/mainloop.rb mikutter/core/plugin/gtk/mainloop.rb
---- mikutter.orig/core/plugin/gtk/mainloop.rb	2014-07-02 06:51:40.901714167 +0900
+--- mikutter.orig/core/plugin/gtk/mainloop.rb	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/mainloop.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,20 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -2556,7 +2556,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/mainloop.rb mikutter/core/plugin/gtk/mai
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/mikutter_window.rb mikutter/core/plugin/gtk/mikutter_window.rb
---- mikutter.orig/core/plugin/gtk/mikutter_window.rb	2014-07-02 06:51:40.902714167 +0900
+--- mikutter.orig/core/plugin/gtk/mikutter_window.rb	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/mikutter_window.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,69 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -2629,7 +2629,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/mikutter_window.rb mikutter/core/plugin/
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/.mikutter.yml mikutter/core/plugin/gtk/.mikutter.yml
---- mikutter.orig/core/plugin/gtk/.mikutter.yml	2014-07-02 06:51:40.900714167 +0900
+--- mikutter.orig/core/plugin/gtk/.mikutter.yml	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
 @@ -1,11 +0,0 @@
 ----
@@ -2644,7 +2644,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/.mikutter.yml mikutter/core/plugin/gtk/.
 -name: Gtk2
 -description: Gtk2を使ってウィンドウを描画する
 diff -Nur mikutter.orig/core/plugin/gtk/po/ar/gtk.po mikutter/core/plugin/gtk/po/ar/gtk.po
---- mikutter.orig/core/plugin/gtk/po/ar/gtk.po	2014-07-02 06:51:40.902714167 +0900
+--- mikutter.orig/core/plugin/gtk/po/ar/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/ar/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2670,7 +2670,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/ar/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/po/de/gtk.po mikutter/core/plugin/gtk/po/de/gtk.po
---- mikutter.orig/core/plugin/gtk/po/de/gtk.po	2014-07-02 06:51:40.902714167 +0900
+--- mikutter.orig/core/plugin/gtk/po/de/gtk.po	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/po/de/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2696,7 +2696,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/de/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/po/el/gtk.po mikutter/core/plugin/gtk/po/el/gtk.po
---- mikutter.orig/core/plugin/gtk/po/el/gtk.po	2014-07-02 06:51:40.902714167 +0900
+--- mikutter.orig/core/plugin/gtk/po/el/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/el/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2722,7 +2722,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/el/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/po/en/gtk.po mikutter/core/plugin/gtk/po/en/gtk.po
---- mikutter.orig/core/plugin/gtk/po/en/gtk.po	2014-07-02 06:51:40.902714167 +0900
+--- mikutter.orig/core/plugin/gtk/po/en/gtk.po	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/po/en/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,24 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2750,7 +2750,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/en/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr "Statusbar default message"
 diff -Nur mikutter.orig/core/plugin/gtk/po/es/gtk.po mikutter/core/plugin/gtk/po/es/gtk.po
---- mikutter.orig/core/plugin/gtk/po/es/gtk.po	2014-07-02 06:51:40.903714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/es/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/es/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2776,7 +2776,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/es/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr "Mensaje predeterminado de la barra de estado"
 diff -Nur mikutter.orig/core/plugin/gtk/po/ja/gtk.po mikutter/core/plugin/gtk/po/ja/gtk.po
---- mikutter.orig/core/plugin/gtk/po/ja/gtk.po	2014-07-02 06:51:40.903714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/ja/gtk.po	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/po/ja/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,23 +0,0 @@
 -# Japanese translations for gtk package
@@ -2803,7 +2803,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/ja/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr "mikutter - Twitterを、全く新しい視点から。"
 diff -Nur mikutter.orig/core/plugin/gtk/po/ro_RO/gtk.po mikutter/core/plugin/gtk/po/ro_RO/gtk.po
---- mikutter.orig/core/plugin/gtk/po/ro_RO/gtk.po	2014-07-02 06:51:40.903714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/ro_RO/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/ro_RO/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,23 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2830,7 +2830,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/ro_RO/gtk.po mikutter/core/plugin/gtk
 -msgid "Statusbar default message"
 -msgstr "Mesaj implicit Bară Status"
 diff -Nur mikutter.orig/core/plugin/gtk/po/ru/gtk.po mikutter/core/plugin/gtk/po/ru/gtk.po
---- mikutter.orig/core/plugin/gtk/po/ru/gtk.po	2014-07-02 06:51:40.903714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/ru/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/ru/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2856,7 +2856,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/ru/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/po/vi/gtk.po mikutter/core/plugin/gtk/po/vi/gtk.po
---- mikutter.orig/core/plugin/gtk/po/vi/gtk.po	2014-07-02 06:51:40.903714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/vi/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/vi/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2882,7 +2882,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/vi/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/po/zh/gtk.po mikutter/core/plugin/gtk/po/zh/gtk.po
---- mikutter.orig/core/plugin/gtk/po/zh/gtk.po	2014-07-02 06:51:40.903714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/zh/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/zh/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2908,7 +2908,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/zh/gtk.po mikutter/core/plugin/gtk/po
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/po/zh_CN/gtk.po mikutter/core/plugin/gtk/po/zh_CN/gtk.po
---- mikutter.orig/core/plugin/gtk/po/zh_CN/gtk.po	2014-07-02 06:51:40.904714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/zh_CN/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/zh_CN/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,23 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2935,7 +2935,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/zh_CN/gtk.po mikutter/core/plugin/gtk
 -msgid "Statusbar default message"
 -msgstr "Statusbar default message"
 diff -Nur mikutter.orig/core/plugin/gtk/po/zh_TW/gtk.po mikutter/core/plugin/gtk/po/zh_TW/gtk.po
---- mikutter.orig/core/plugin/gtk/po/zh_TW/gtk.po	2014-07-02 06:51:40.904714168 +0900
+--- mikutter.orig/core/plugin/gtk/po/zh_TW/gtk.po	2014-11-09 23:57:07.454722043 +0900
 +++ mikutter/core/plugin/gtk/po/zh_TW/gtk.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,22 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -2961,7 +2961,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/po/zh_TW/gtk.po mikutter/core/plugin/gtk
 -msgid "Statusbar default message"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gtk/slug_dictionary.rb mikutter/core/plugin/gtk/slug_dictionary.rb
---- mikutter.orig/core/plugin/gtk/slug_dictionary.rb	2014-07-02 06:51:40.904714168 +0900
+--- mikutter.orig/core/plugin/gtk/slug_dictionary.rb	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/slug_dictionary.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,90 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3055,7 +3055,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/slug_dictionary.rb mikutter/core/plugin/
 -
 -
 diff -Nur mikutter.orig/core/plugin/gtk/tab_container.rb mikutter/core/plugin/gtk/tab_container.rb
---- mikutter.orig/core/plugin/gtk/tab_container.rb	2014-07-02 06:51:40.904714168 +0900
+--- mikutter.orig/core/plugin/gtk/tab_container.rb	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/tab_container.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,16 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3075,7 +3075,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/tab_container.rb mikutter/core/plugin/gt
 -  alias slug to_sym
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/tab_toolbar.rb mikutter/core/plugin/gtk/tab_toolbar.rb
---- mikutter.orig/core/plugin/gtk/tab_toolbar.rb	2014-07-02 06:51:40.904714168 +0900
+--- mikutter.orig/core/plugin/gtk/tab_toolbar.rb	2014-11-09 23:57:07.453722033 +0900
 +++ mikutter/core/plugin/gtk/tab_toolbar.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,20 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3099,7 +3099,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/tab_toolbar.rb mikutter/core/plugin/gtk/
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gtk/toolbar_generator.rb mikutter/core/plugin/gtk/toolbar_generator.rb
---- mikutter.orig/core/plugin/gtk/toolbar_generator.rb	2014-07-02 06:51:40.904714168 +0900
+--- mikutter.orig/core/plugin/gtk/toolbar_generator.rb	2014-11-09 23:57:07.455722049 +0900
 +++ mikutter/core/plugin/gtk/toolbar_generator.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,35 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3138,7 +3138,7 @@ diff -Nur mikutter.orig/core/plugin/gtk/toolbar_generator.rb mikutter/core/plugi
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gui/command.rb mikutter/core/plugin/gui/command.rb
---- mikutter.orig/core/plugin/gui/command.rb	2014-07-02 06:51:40.905714168 +0900
+--- mikutter.orig/core/plugin/gui/command.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/command.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,44 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3186,7 +3186,7 @@ diff -Nur mikutter.orig/core/plugin/gui/command.rb mikutter/core/plugin/gui/comm
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gui/cuscadable.rb mikutter/core/plugin/gui/cuscadable.rb
---- mikutter.orig/core/plugin/gui/cuscadable.rb	2014-07-02 06:51:40.905714168 +0900
+--- mikutter.orig/core/plugin/gui/cuscadable.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/cuscadable.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,95 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3285,7 +3285,7 @@ diff -Nur mikutter.orig/core/plugin/gui/cuscadable.rb mikutter/core/plugin/gui/c
 -end
 -
 diff -Nur mikutter.orig/core/plugin/gui/dsl.rb mikutter/core/plugin/gui/dsl.rb
---- mikutter.orig/core/plugin/gui/dsl.rb	2014-07-02 06:51:40.905714168 +0900
+--- mikutter.orig/core/plugin/gui/dsl.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/dsl.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,38 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3327,7 +3327,7 @@ diff -Nur mikutter.orig/core/plugin/gui/dsl.rb mikutter/core/plugin/gui/dsl.rb
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gui/gui.rb mikutter/core/plugin/gui/gui.rb
---- mikutter.orig/core/plugin/gui/gui.rb	2014-07-02 06:51:40.905714168 +0900
+--- mikutter.orig/core/plugin/gui/gui.rb	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/gui.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,84 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3415,7 +3415,7 @@ diff -Nur mikutter.orig/core/plugin/gui/gui.rb mikutter/core/plugin/gui/gui.rb
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/hierarchy_child.rb mikutter/core/plugin/gui/hierarchy_child.rb
---- mikutter.orig/core/plugin/gui/hierarchy_child.rb	2014-07-02 06:51:40.905714168 +0900
+--- mikutter.orig/core/plugin/gui/hierarchy_child.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/hierarchy_child.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,87 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3506,7 +3506,7 @@ diff -Nur mikutter.orig/core/plugin/gui/hierarchy_child.rb mikutter/core/plugin/
 -end
 -
 diff -Nur mikutter.orig/core/plugin/gui/hierarchy_parent.rb mikutter/core/plugin/gui/hierarchy_parent.rb
---- mikutter.orig/core/plugin/gui/hierarchy_parent.rb	2014-07-02 06:51:40.906714168 +0900
+--- mikutter.orig/core/plugin/gui/hierarchy_parent.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/hierarchy_parent.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,98 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3608,7 +3608,7 @@ diff -Nur mikutter.orig/core/plugin/gui/hierarchy_parent.rb mikutter/core/plugin
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gui/.mikutter.yml mikutter/core/plugin/gui/.mikutter.yml
---- mikutter.orig/core/plugin/gui/.mikutter.yml	2014-07-02 06:51:40.905714168 +0900
+--- mikutter.orig/core/plugin/gui/.mikutter.yml	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
 @@ -1,10 +0,0 @@
 ----
@@ -3622,7 +3622,7 @@ diff -Nur mikutter.orig/core/plugin/gui/.mikutter.yml mikutter/core/plugin/gui/.
 -name: GUI
 -description: プラグインがグラフィカルなインターフェイスを提供するための各種イベントを追加する
 diff -Nur mikutter.orig/core/plugin/gui/pane.rb mikutter/core/plugin/gui/pane.rb
---- mikutter.orig/core/plugin/gui/pane.rb	2014-07-02 06:51:40.906714168 +0900
+--- mikutter.orig/core/plugin/gui/pane.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/pane.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,42 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -3668,7 +3668,7 @@ diff -Nur mikutter.orig/core/plugin/gui/pane.rb mikutter/core/plugin/gui/pane.rb
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/po/ar/gui.po mikutter/core/plugin/gui/po/ar/gui.po
---- mikutter.orig/core/plugin/gui/po/ar/gui.po	2014-07-02 06:51:40.906714168 +0900
+--- mikutter.orig/core/plugin/gui/po/ar/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/ar/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,27 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3699,7 +3699,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/ar/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gui/po/de/gui.po mikutter/core/plugin/gui/po/de/gui.po
---- mikutter.orig/core/plugin/gui/po/de/gui.po	2014-07-02 06:51:40.906714168 +0900
+--- mikutter.orig/core/plugin/gui/po/de/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/de/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,27 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3730,7 +3730,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/de/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr "Standard"
 diff -Nur mikutter.orig/core/plugin/gui/po/el/gui.po mikutter/core/plugin/gui/po/el/gui.po
---- mikutter.orig/core/plugin/gui/po/el/gui.po	2014-07-02 06:51:40.906714168 +0900
+--- mikutter.orig/core/plugin/gui/po/el/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/el/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3760,7 +3760,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/el/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gui/po/en/gui.po mikutter/core/plugin/gui/po/en/gui.po
---- mikutter.orig/core/plugin/gui/po/en/gui.po	2014-07-02 06:51:40.906714168 +0900
+--- mikutter.orig/core/plugin/gui/po/en/gui.po	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/po/en/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,27 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3791,7 +3791,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/en/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr "Default"
 diff -Nur mikutter.orig/core/plugin/gui/po/es/gui.po mikutter/core/plugin/gui/po/es/gui.po
---- mikutter.orig/core/plugin/gui/po/es/gui.po	2014-07-02 06:51:40.907714169 +0900
+--- mikutter.orig/core/plugin/gui/po/es/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/es/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3821,7 +3821,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/es/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr "Por defecto"
 diff -Nur mikutter.orig/core/plugin/gui/po/ro_RO/gui.po mikutter/core/plugin/gui/po/ro_RO/gui.po
---- mikutter.orig/core/plugin/gui/po/ro_RO/gui.po	2014-07-02 06:51:40.907714169 +0900
+--- mikutter.orig/core/plugin/gui/po/ro_RO/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/ro_RO/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,27 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3852,7 +3852,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/ro_RO/gui.po mikutter/core/plugin/gui
 -msgid "デフォルト"
 -msgstr "Implict"
 diff -Nur mikutter.orig/core/plugin/gui/po/ru/gui.po mikutter/core/plugin/gui/po/ru/gui.po
---- mikutter.orig/core/plugin/gui/po/ru/gui.po	2014-07-02 06:51:40.907714169 +0900
+--- mikutter.orig/core/plugin/gui/po/ru/gui.po	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/po/ru/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3882,7 +3882,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/ru/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gui/po/vi/gui.po mikutter/core/plugin/gui/po/vi/gui.po
---- mikutter.orig/core/plugin/gui/po/vi/gui.po	2014-07-02 06:51:40.907714169 +0900
+--- mikutter.orig/core/plugin/gui/po/vi/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/vi/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3912,7 +3912,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/vi/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gui/po/zh/gui.po mikutter/core/plugin/gui/po/zh/gui.po
---- mikutter.orig/core/plugin/gui/po/zh/gui.po	2014-07-02 06:51:40.907714169 +0900
+--- mikutter.orig/core/plugin/gui/po/zh/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/zh/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3942,7 +3942,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/zh/gui.po mikutter/core/plugin/gui/po
 -msgid "デフォルト"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gui/po/zh_CN/gui.po mikutter/core/plugin/gui/po/zh_CN/gui.po
---- mikutter.orig/core/plugin/gui/po/zh_CN/gui.po	2014-07-02 06:51:40.907714169 +0900
+--- mikutter.orig/core/plugin/gui/po/zh_CN/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/zh_CN/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,27 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -3973,7 +3973,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/zh_CN/gui.po mikutter/core/plugin/gui
 -msgid "デフォルト"
 -msgstr "默认"
 diff -Nur mikutter.orig/core/plugin/gui/po/zh_TW/gui.po mikutter/core/plugin/gui/po/zh_TW/gui.po
---- mikutter.orig/core/plugin/gui/po/zh_TW/gui.po	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/po/zh_TW/gui.po	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/po/zh_TW/gui.po	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# SOME DESCRIPTIVE TITLE.
@@ -4003,7 +4003,7 @@ diff -Nur mikutter.orig/core/plugin/gui/po/zh_TW/gui.po mikutter/core/plugin/gui
 -msgid "デフォルト"
 -msgstr ""
 diff -Nur mikutter.orig/core/plugin/gui/postbox.rb mikutter/core/plugin/gui/postbox.rb
---- mikutter.orig/core/plugin/gui/postbox.rb	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/postbox.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/postbox.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,67 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4074,7 +4074,7 @@ diff -Nur mikutter.orig/core/plugin/gui/postbox.rb mikutter/core/plugin/gui/post
 -class Plugin::GUI::Timeline
 -  include Plugin::GUI::Postbox::PostboxParent end
 diff -Nur mikutter.orig/core/plugin/gui/profile.rb mikutter/core/plugin/gui/profile.rb
---- mikutter.orig/core/plugin/gui/profile.rb	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/profile.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/profile.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,26 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4104,7 +4104,7 @@ diff -Nur mikutter.orig/core/plugin/gui/profile.rb mikutter/core/plugin/gui/prof
 -  end
 -end
 diff -Nur mikutter.orig/core/plugin/gui/profiletab.rb mikutter/core/plugin/gui/profiletab.rb
---- mikutter.orig/core/plugin/gui/profiletab.rb	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/profiletab.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/profiletab.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,45 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4153,7 +4153,7 @@ diff -Nur mikutter.orig/core/plugin/gui/profiletab.rb mikutter/core/plugin/gui/p
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/tab_child_widget.rb mikutter/core/plugin/gui/tab_child_widget.rb
---- mikutter.orig/core/plugin/gui/tab_child_widget.rb	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/tab_child_widget.rb	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/tab_child_widget.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,32 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4189,7 +4189,7 @@ diff -Nur mikutter.orig/core/plugin/gui/tab_child_widget.rb mikutter/core/plugin
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/tablike.rb mikutter/core/plugin/gui/tablike.rb
---- mikutter.orig/core/plugin/gui/tablike.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/tablike.rb	2014-11-09 23:57:07.478721682 +0900
 +++ mikutter/core/plugin/gui/tablike.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,92 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4285,7 +4285,7 @@ diff -Nur mikutter.orig/core/plugin/gui/tablike.rb mikutter/core/plugin/gui/tabl
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/tab.rb mikutter/core/plugin/gui/tab.rb
---- mikutter.orig/core/plugin/gui/tab.rb	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/tab.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/tab.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,59 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4348,7 +4348,7 @@ diff -Nur mikutter.orig/core/plugin/gui/tab.rb mikutter/core/plugin/gui/tab.rb
 -    @temporary_tab end
 -end
 diff -Nur mikutter.orig/core/plugin/gui/tab_toolbar.rb mikutter/core/plugin/gui/tab_toolbar.rb
---- mikutter.orig/core/plugin/gui/tab_toolbar.rb	2014-07-02 06:51:40.908714169 +0900
+--- mikutter.orig/core/plugin/gui/tab_toolbar.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/tab_toolbar.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,29 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4381,7 +4381,7 @@ diff -Nur mikutter.orig/core/plugin/gui/tab_toolbar.rb mikutter/core/plugin/gui/
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/test/test_cuscadable.rb mikutter/core/plugin/gui/test/test_cuscadable.rb
---- mikutter.orig/core/plugin/gui/test/test_cuscadable.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/test/test_cuscadable.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/test/test_cuscadable.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,56 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4441,7 +4441,7 @@ diff -Nur mikutter.orig/core/plugin/gui/test/test_cuscadable.rb mikutter/core/pl
 -# >> 
 -# >> 4 tests, 9 assertions, 0 failures, 0 errors, 0 skips
 diff -Nur mikutter.orig/core/plugin/gui/test/test_dsl.rb mikutter/core/plugin/gui/test/test_dsl.rb
---- mikutter.orig/core/plugin/gui/test/test_dsl.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/test/test_dsl.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/test/test_dsl.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,27 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4472,7 +4472,7 @@ diff -Nur mikutter.orig/core/plugin/gui/test/test_dsl.rb mikutter/core/plugin/gu
 -# ~> 	from /usr/lib/ruby/1.9.1/rubygems/custom_require.rb:36:in `require'
 -# ~> 	from -:9:in `<main>'
 diff -Nur mikutter.orig/core/plugin/gui/test/test_hierarchy_parent.rb mikutter/core/plugin/gui/test/test_hierarchy_parent.rb
---- mikutter.orig/core/plugin/gui/test/test_hierarchy_parent.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/test/test_hierarchy_parent.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/test/test_hierarchy_parent.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,60 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4536,7 +4536,7 @@ diff -Nur mikutter.orig/core/plugin/gui/test/test_hierarchy_parent.rb mikutter/c
 -# >> 
 -# >> 2 tests, 6 assertions, 0 failures, 0 errors, 0 skips
 diff -Nur mikutter.orig/core/plugin/gui/test/test_widget.rb mikutter/core/plugin/gui/test/test_widget.rb
---- mikutter.orig/core/plugin/gui/test/test_widget.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/test/test_widget.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/test/test_widget.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,44 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4584,7 +4584,7 @@ diff -Nur mikutter.orig/core/plugin/gui/test/test_widget.rb mikutter/core/plugin
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/timeline.rb mikutter/core/plugin/gui/timeline.rb
---- mikutter.orig/core/plugin/gui/timeline.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/timeline.rb	2014-11-09 23:57:07.479721657 +0900
 +++ mikutter/core/plugin/gui/timeline.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,99 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4687,7 +4687,7 @@ diff -Nur mikutter.orig/core/plugin/gui/timeline.rb mikutter/core/plugin/gui/tim
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/widget.rb mikutter/core/plugin/gui/widget.rb
---- mikutter.orig/core/plugin/gui/widget.rb	2014-07-02 06:51:40.909714169 +0900
+--- mikutter.orig/core/plugin/gui/widget.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/widget.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,95 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4786,7 +4786,7 @@ diff -Nur mikutter.orig/core/plugin/gui/widget.rb mikutter/core/plugin/gui/widge
 -
 -end
 diff -Nur mikutter.orig/core/plugin/gui/window.rb mikutter/core/plugin/gui/window.rb
---- mikutter.orig/core/plugin/gui/window.rb	2014-07-02 06:51:40.910714169 +0900
+--- mikutter.orig/core/plugin/gui/window.rb	2014-11-09 23:57:07.477721704 +0900
 +++ mikutter/core/plugin/gui/window.rb	1970-01-01 09:00:00.000000000 +0900
 @@ -1,39 +0,0 @@
 -# -*- coding: utf-8 -*-
@@ -4828,9 +4828,97 @@ diff -Nur mikutter.orig/core/plugin/gui/window.rb mikutter/core/plugin/gui/windo
 -  end
 -
 -end
+diff -Nur mikutter.orig/core/plugin/libnotify/libnotify.rb mikutter/core/plugin/libnotify/libnotify.rb
+--- mikutter.orig/core/plugin/libnotify/libnotify.rb	2014-11-09 23:57:07.460722032 +0900
++++ mikutter/core/plugin/libnotify/libnotify.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,10 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# notify-sendコマンド又はruby-libnotifyで通知を表示する。
+-
+-if require_if_exist('RNotify') and defined?(Notify) and Notify.init("mikutter") # ruby-libnotifyがつかえる場合
+-  notice 'notify: use rnotify'
+-  require File.expand_path File.join(File.dirname(__FILE__), 'rnotify')
+-elsif command_exist? 'notify-send' # notify-sendコマンドが有る場合
+-  notice 'notify: use notify-send'
+-  require File.expand_path File.join(File.dirname(__FILE__), 'notify-send')
+-end
+diff -Nur mikutter.orig/core/plugin/libnotify/.mikutter.yml mikutter/core/plugin/libnotify/.mikutter.yml
+--- mikutter.orig/core/plugin/libnotify/.mikutter.yml	2014-11-09 23:57:07.460722032 +0900
++++ mikutter/core/plugin/libnotify/.mikutter.yml	1970-01-01 09:00:00.000000000 +0900
+@@ -1,9 +0,0 @@
+----
+-slug: :libnotify
+-depends:
+-  mikutter: '0.2'
+-  plugin: []
+-version: '1.0'
+-author: toshi_a
+-name: libnotify
+-description: 通知をnotify-sendコマンドを使って行う。
+diff -Nur mikutter.orig/core/plugin/libnotify/notify-send.rb mikutter/core/plugin/libnotify/notify-send.rb
+--- mikutter.orig/core/plugin/libnotify/notify-send.rb	2014-11-09 23:57:07.460722032 +0900
++++ mikutter/core/plugin/libnotify/notify-send.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,23 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# notify-sendコマンドで通知
+-
+-Plugin::create(:libnotify) do
+-  on_popup_notify do |user, text, &stop|
+-    SerialThread.new{
+-      command = ["notify-send"]
+-      if(text.is_a? Message)
+-        command << '--category=system'
+-        text = text.to_s
+-      end
+-      command << '-t' << UserConfig[:notify_expire_time].to_s + '000'
+-      if user
+-        command << "-i" << Gdk::WebImageLoader.local_path(user[:profile_image_url])
+-        command << "@#{user[:idname]} (#{user[:name]})" end
+-      command << text
+-      notice command
+-      begin
+-        bg_system(*command)
+-      rescue => e
+-        error e
+-      end }
+-    stop.call end end
+diff -Nur mikutter.orig/core/plugin/libnotify/rnotify.rb mikutter/core/plugin/libnotify/rnotify.rb
+--- mikutter.orig/core/plugin/libnotify/rnotify.rb	2014-11-09 23:57:07.460722032 +0900
++++ mikutter/core/plugin/libnotify/rnotify.rb	1970-01-01 09:00:00.000000000 +0900
+@@ -1,30 +0,0 @@
+-# -*- coding: utf-8 -*-
+-# ruby-libnotifyを使用して通知
+-
+-Plugin::create(:libnotify) do
+-  on_popup_notify do |user, text, &stop|
+-
+-    icon = nil
+-    title = nil
+-    category = nil
+-    timeout = UserConfig[:notify_expire_time].to_i * 1000
+-
+-    if text.is_a? Message
+-      text = text.to_s
+-    end
+-
+-    if user
+-      icon = Gtk::WebImageLoader.local_path(user[:profile_image_url])
+-      title = "@#{user[:idname]} (#{user[:name]})"
+-    end
+-
+-    n = Notify::Notification.new(*[title, text, icon, nil][0, [3, Notify::Notification.method(:new).arity].max])
+-    n.timeout = timeout
+-    n.category = category
+-    n.show
+-    Reserver.new(timeout) { n.close }
+-    stop.call
+-  end
+-
+-  END { Notify.uninit }
+-end
 diff -Nur mikutter.orig/core/plugin/streaming/.mikutter.yml mikutter/core/plugin/streaming/.mikutter.yml
---- mikutter.orig/core/plugin/streaming/.mikutter.yml	2014-07-02 06:51:40.951714179 +0900
-+++ mikutter/core/plugin/streaming/.mikutter.yml	2014-07-02 06:20:44.121668999 +0900
+--- mikutter.orig/core/plugin/streaming/.mikutter.yml	2014-11-09 23:57:07.460722032 +0900
++++ mikutter/core/plugin/streaming/.mikutter.yml	2014-11-09 23:57:24.278317593 +0900
 @@ -3,7 +3,6 @@
  depends:
    mikutter: '0.2'
@@ -4840,8 +4928,8 @@ diff -Nur mikutter.orig/core/plugin/streaming/.mikutter.yml mikutter/core/plugin
  version: '1.0'
  author: toshi_a
 diff -Nur mikutter.orig/Gemfile mikutter/Gemfile
---- mikutter.orig/Gemfile	2014-07-02 06:51:40.846714154 +0900
-+++ mikutter/Gemfile	2014-07-02 06:20:44.096669004 +0900
+--- mikutter.orig/Gemfile	2014-11-09 23:57:07.443722018 +0900
++++ mikutter/Gemfile	2014-11-09 23:57:24.279317569 +0900
 @@ -23,7 +23,4 @@
    Dir.glob(File.expand_path(File.join(File.dirname(__FILE__), "core/plugin/*/Gemfile"))){ |path|
      eval File.open(path).read
