@@ -3,7 +3,9 @@ module: usr.manifest
 
 CFLAGS=-fPIC -Wall -shared
 
-RUBY_VER=2.2.4
+RUBY_VER_MAJOR=2.5
+RUBY_VER_MINOR=1
+RUBY_VER=${RUBY_VER_MAJOR}.${RUBY_VER_MINOR}
 
 RUBY_LDFLAGS=-lm -lcrypt -ldl -lpthread -lruby
 LIBS=-Lupstream/ruby
@@ -20,9 +22,6 @@ version_check:
 upstream/ruby: version_check
 	mkdir -p upstream
 	cd upstream && git clone --depth 1 -b v$(subst .,_,${RUBY_VER}) https://github.com/ruby/ruby.git
-	cd upstream/ruby && patch -p1 < ../../no-use-sleepy-thread-timer-ruby.patch
-	cd upstream/ruby && patch -p1 < ../../no-ipv6.patch
-	cd upstream/ruby && patch -p1 < ../../disable-fstat.patch
 	cd upstream/ruby && autoconf
 	cd upstream/ruby && ./configure --libdir=/usr/lib --enable-pic --enable-shared --disable-install-doc --disable-install-rdoc --disable-ipv6
 
@@ -56,7 +55,7 @@ usr.manifest: ruby.so upstream/bundler upstream/cert.pem
 	cp -a ./upstream/bundler/lib/* ./upstream/ruby/lib/
 	echo '/ruby.so: $${MODULE_DIR}/ruby.so' > usr.manifest
 	echo '/**: $${MODULE_DIR}/upstream/ruby/bin/**' >> usr.manifest
-	echo '/libruby.so.2.2: $${MODULE_DIR}/upstream/ruby/libruby.so' >> usr.manifest
+	echo '/libruby.so.${RUBY_VER_MAJOR}: $${MODULE_DIR}/upstream/ruby/libruby.so' >> usr.manifest
 	echo '/usr/share/ruby/**: $${MODULE_DIR}/upstream/ruby/lib/**' >> usr.manifest
 	echo '/usr/lib64/ruby/rbconfig.rb: $${MODULE_DIR}/upstream/ruby/rbconfig.rb' >> usr.manifest
 	echo '/usr/lib64/ruby/**: $${MODULE_DIR}/upstream/ruby/.ext/x86_64-linux/**' >> usr.manifest
@@ -68,15 +67,15 @@ usr.manifest: ruby.so upstream/bundler upstream/cert.pem
 	: > bootfs.manifest
 
 ROOTFS: module
-	mkdir -p ./ROOTFS/usr/lib/ruby/2.2.0/x86_64-linux
-	cp -a ./upstream/ruby/.ext/common/* ./ROOTFS/usr/lib/ruby/2.2.0
-	cp -a ./upstream/bundler/lib/* ./ROOTFS/usr/lib/ruby/2.2.0
+	mkdir -p ./ROOTFS/usr/lib/ruby/${RUBY_VER_MAJOR}.0/x86_64-linux
+	cp -a ./upstream/ruby/.ext/common/* ./ROOTFS/usr/lib/ruby/${RUBY_VER_MAJOR}.0
+	cp -a ./upstream/bundler/lib/* ./ROOTFS/usr/lib/ruby/${RUBY_VER_MAJOR}.0
 	cp ruby.so ./ROOTFS/
 	cp -a ./upstream/ruby/bin/* ./ROOTFS/
-	cp ./upstream/ruby/libruby.so ./ROOTFS/libruby.so.2.2
-	cp -a ./upstream/ruby/lib/* ./ROOTFS/usr/lib/ruby/2.2.0
-	cp ./upstream/ruby/rbconfig.rb ./ROOTFS/usr/lib/ruby/2.2.0/x86_64-linux/rbconfig.rb
-	cp -a ./upstream/ruby/.ext/x86_64-linux/* ./ROOTFS/usr/lib/ruby/2.2.0/x86_64-linux/
+	cp ./upstream/ruby/libruby.so ./ROOTFS/libruby.so.${RUBY_VER_MAJOR}
+	cp -a ./upstream/ruby/lib/* ./ROOTFS/usr/lib/ruby/${RUBY_VER_MAJOR}.0
+	cp ./upstream/ruby/rbconfig.rb ./ROOTFS/usr/lib/ruby/${RUBY_VER_MAJOR}.0/x86_64-linux/rbconfig.rb
+	cp -a ./upstream/ruby/.ext/x86_64-linux/* ./ROOTFS/usr/lib/ruby/${RUBY_VER_MAJOR}.0/x86_64-linux/
 	mkdir -p ./ROOTFS/usr/local/ssl
 	cp ./upstream/cert.pem ./ROOTFS/usr/local/ssl/cert.pem
 	find upstream/ruby/.ext/x86_64-linux/ -name '*.so' -exec ldd {} \;|awk '{print "cp",$$3,"./ROOTFS/"}'|grep "/lib"|grep -v "ld-linux"|grep -v "libc.so"|grep -v "libpthread.so"|grep -v "libdl.so"|grep -v "libm.so"|grep -v "libruby.so"|sort|uniq > tmp.sh
